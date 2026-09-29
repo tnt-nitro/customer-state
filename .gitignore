@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Runtime / Daten
+data/*
+!data/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
+
+# Umgebungsvariablen / Secrets
+.env
+
+# Logs
+*.log
+
+# Editor / Betriebssystem
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
