@@ -125,3 +125,31 @@ Datenbankdatei: `data/customer_state.db`, über `sqlite3` aus der Standardbiblio
 `customer-state.service` neu gestartet und aktiv. `GET /` liefert HTTP 200. Schema, Fremdschlüssel, Cascade und erneutes Initialisieren ohne Datenverlust geprüft. Testdaten wurden wieder entfernt. Beide Tabellen sind leer.
 
 Entwicklungsstand: Erfassung weiterhin nur im Browser. Die Datenbank existiert, ist aber noch nicht mit dem Speicherbutton verbunden.
+
+### 2026-10-02 22:33 (UTC+2)
+
+Speicherbutton mit SQLite verbunden. Geändert: `app/database.py`, `app/main.py`, `static/selection.js`, `templates/index.html`, `static/style.css`. Keine neue Datei, keine Pakete installiert.
+
+`POST /api/erfassungen` speichert nur vollständige Datensätze: `level1` und `level2` nicht leer, `level3` eine Liste mit mindestens einem nicht leeren Wert. `save_erfassung()` legt die Erfassung und alle Level-3-Werte in einer Transaktion an. `created_at` setzt weiterhin SQLite. Schlägt ein Teil fehl, bleibt kein unvollständiger Datensatz. Der Button sendet den aktuellen Datensatz einmalig per POST. Nur bei erfolgreicher Antwort werden alle drei Ebenen zurückgesetzt, Ebene 2 und 3 ausgeblendet, der Button deaktiviert und „Erfassung gespeichert“ angezeigt. Bei Fehler bleibt die Auswahl bestehen, es gibt keine automatische Wiederholung.
+
+`customer-state.service` neu gestartet und aktiv. `GET /` liefert HTTP 200. Geprüft: eine Erfassung mit einem Level-3-Wert, eine weitere mit drei Level-3-Werten, ungültige Requests ohne neue Zeilen, Rollback bei Fehler während der Level-3-Speicherung, Zurücksetzen der Oberfläche nach Erfolg. Testdaten anschließend gelöscht. Beide Tabellen sind leer.
+
+Entwicklungsstand: Ein aktiver Klick auf „Erfassung speichern“ legt genau eine Erfassung in `data/customer_state.db` an. Die Datenbank ist leer.
+
+### 2026-10-02 22:41 (UTC+2)
+
+Zeitstempel auf deutsche Ortszeit umgestellt. Geändert: `app/database.py`. Auswahl- und Speicherablauf unverändert. Keine Pakete installiert. Bestehende Datensätze nicht verändert.
+
+Ursache: `created_at` kam aus SQLite `datetime('now', 'localtime')`. Die Systemzeitzone ist UTC, deshalb lag der gespeicherte Zeitpunkt zwei Stunden vor der deutschen Ortszeit. SQLite kennt keine Zeitzone `Europe/Berlin` und keine automatische Sommer- und Winterzeit.
+
+`save_erfassung()` setzt `created_at` jetzt in Python mit `zoneinfo.ZoneInfo("Europe/Berlin")`. Format: `YYYY-MM-DD HH:MM:SS±HH:MM`, zum Beispiel `2026-10-02 22:41:54+02:00`. Der Offset kommt aus der Zeitzone. Für neue Datenbanken entfällt der SQLite-Default `localtime`; die bestehende Tabelle und der Datensatz ID 5 bleiben unverändert.
+
+`customer-state.service` neu gestartet. Testdatensatz geprüft und danach nur dieser Datensatz gelöscht. ID 5 ist unverändert: `2026-10-02 20:36:11`, Google, Gravel, Specialized. Sommerzeit `+02:00` und Winterzeit `+01:00` wurden über `Europe/Berlin` geprüft, nicht fest addiert.
+
+Entwicklungsstand: Neue Erfassungen speichern die deutsche Ortszeit. ID 5 behält den bisherigen UTC-Zeitstempel.
+
+### 2026-10-02 23:34 (UTC+2)
+
+Zeitstempelbehandlung erneut geprüft. Keine weitere Codeänderung. `save_erfassung()` setzt `created_at` weiterhin mit `zoneinfo` und `Europe/Berlin`. Testdatensatz `2026-10-02 23:34:25+02:00` geprüft und danach nur dieser Datensatz gelöscht. ID 5 unverändert: `2026-10-02 20:36:11`, Google, Gravel, Specialized.
+
+Entwicklungsstand: Neue Erfassungen speichern die deutsche Ortszeit. ID 5 behält den bisherigen Zeitstempel.

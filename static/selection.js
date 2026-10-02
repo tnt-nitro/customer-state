@@ -3,6 +3,8 @@
     var level3 = document.querySelector("[data-level='3']");
     var level3Choices = level3 ? level3.querySelector("[data-choice-group]") : null;
     var saveButton = document.querySelector("[data-save-entry]");
+    var saveNotice = document.querySelector("[data-save-notice]");
+    var saving = false;
 
     var interestsByBike = {
         "MTB": ["Specialized", "Leasing", "Kauf", "Reparatur"],
@@ -40,6 +42,7 @@
                 var selected = button.getAttribute("aria-pressed") === "true";
                 button.setAttribute("aria-pressed", selected ? "false" : "true");
                 updateSaveButton();
+                hideNotice();
             });
             level3Choices.appendChild(button);
         });
@@ -61,6 +64,7 @@
                     onChange(button.textContent);
                 }
                 updateSaveButton();
+                hideNotice();
             });
         });
     }
@@ -110,13 +114,76 @@
         saveButton.disabled = !(record.level1 && record.level2 && record.level3.length > 0);
     }
 
+    function hideNotice() {
+        if (!saveNotice) {
+            return;
+        }
+        saveNotice.hidden = true;
+        saveNotice.textContent = "";
+        saveNotice.removeAttribute("data-state");
+    }
+
+    function showNotice(message, state) {
+        if (!saveNotice) {
+            return;
+        }
+        saveNotice.textContent = message;
+        saveNotice.setAttribute("data-state", state);
+        saveNotice.hidden = false;
+    }
+
+    function clearPressed(section) {
+        if (!section) {
+            return;
+        }
+        section.querySelectorAll(".choice").forEach(function (button) {
+            button.setAttribute("aria-pressed", "false");
+        });
+    }
+
+    function resetForm() {
+        clearPressed(level1);
+        clearPressed(level2);
+        if (level2) {
+            level2.hidden = true;
+        }
+        if (level3Choices) {
+            level3Choices.replaceChildren();
+        }
+        if (level3) {
+            level3.hidden = true;
+        }
+        if (saveButton) {
+            saveButton.disabled = true;
+        }
+    }
+
     if (saveButton) {
         saveButton.addEventListener("click", function () {
-            if (saveButton.disabled) {
+            if (saveButton.disabled || saving) {
                 return;
             }
 
-            console.log(currentRecord());
+            var record = currentRecord();
+            saving = true;
+            fetch("/api/erfassungen", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(record)
+            }).then(function (response) {
+                if (!response.ok) {
+                    throw new Error("save failed");
+                }
+                return response.json();
+            }).then(function () {
+                resetForm();
+                showNotice("Erfassung gespeichert", "ok");
+            }).catch(function () {
+                showNotice("Die Erfassung konnte nicht gespeichert werden.", "error");
+            }).finally(function () {
+                saving = false;
+                updateSaveButton();
+            });
         });
     }
 

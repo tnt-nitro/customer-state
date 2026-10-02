@@ -39,6 +39,24 @@ main {
     gap: 24px;
 }
 
+.notice {
+    margin: 0;
+    padding: 14px 18px;
+    border: 1px solid #d3dae3;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #1b2430;
+}
+
+.notice[hidden] {
+    display: none;
+}
+
+.notice[data-state="error"] {
+    color: #7a3030;
+    border-color: #e0c4c4;
+}
+
 .step {
     background: #ffffff;
     border: 1px solid #d3dae3;
