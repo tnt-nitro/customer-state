@@ -163,3 +163,13 @@ Navigation im Kopf: „Erfassung“ nach `/`, „Erfassungen“ nach `GET /erfas
 `customer-state.service` neu gestartet und aktiv. `GET /` und `GET /erfassungen` liefern HTTP 200. ID 5 wird als 02.10.2026, 22:36, Google, Gravel, Specialized angezeigt. Temporäre Datensätze für Sortierung, Zuordnung und Zählung wurden danach nur diese Datensätze gelöscht. ID 5 ist unverändert. Bestehende Erfassungen bleiben erhalten.
 
 Entwicklungsstand: Erfassungsseite und Verwaltungsseite. Die Datenbank wird von der Liste nur gelesen.
+
+### 2026-10-03 00:48 (UTC+2)
+
+Demodaten für 2025 in die bestehende Datenbank geschrieben. Neu erstellt: `scripts/generate_demodaten.py`, `docs/plausibilitaetsbericht-demodaten-2025.md`. Anwendungscode unverändert. Keine Pakete installiert. Kein Datensatz gelöscht.
+
+Zeitraum 01.01.2025 bis 31.12.2025. 2.975 neue Erfassungen, nur an geöffneten Tagen: Montag bis Freitag 10:00–19:00 Uhr, Samstag 09:00–14:00 Uhr. Sonntage und die gesetzlichen Feiertage in Hessen ohne Erfassung. Samstag hat eine eigene Tagesverteilung und eine höhere Kontaktdichte je Öffnungsstunde. Zeitstempel mit `Europe/Berlin`, Format `YYYY-MM-DD HH:MM:SS±HH:MM`. Menge und Verteilungen entstehen aus dem Modell eines ländlichen High-End-Händlers; die Ist-Anteile stehen im Plausibilitätsbericht. Ein zweiter Lauf bricht ab, solange Erfassungen aus 2025 vorhanden sind.
+
+ID 5 bleibt `2026-10-02 22:36:11+02:00`, Google, Gravel, Specialized. ID 8 bleibt `2026-10-02 23:37:10+02:00`, Leasingportal, Kinderrad, woom. Gesamtzahl in der Datenbank: 2.977. Dienstneustart nicht nötig, die Liste liest bei jedem Aufruf. `GET /` und `GET /erfassungen` liefern HTTP 200. Die Liste zeigt 2.977 Erfassungen, 0 heute, oben ID 8 und ID 5.
+
+Entwicklungsstand: Erfassung und Verwaltung unverändert. Die Datenbank enthält die beiden bestehenden Datensätze und die Demodaten 2025.
