@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.database import init_db, save_erfassung
+from app.database import init_db, list_erfassungen, save_erfassung
 
 app = FastAPI(title="Customer State")
 init_db()
@@ -13,7 +13,26 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse(request, "index.html")
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {"active": "erfassung"},
+    )
+
+
+@app.get("/erfassungen", response_class=HTMLResponse)
+async def erfassungen(request: Request):
+    overview = list_erfassungen()
+    return templates.TemplateResponse(
+        request,
+        "erfassungen.html",
+        {
+            "active": "erfassungen",
+            "entries": overview["entries"],
+            "total": overview["total"],
+            "today": overview["today"],
+        },
+    )
 
 
 def _clean_text(value):

@@ -34,6 +34,126 @@ header h1 {
     letter-spacing: -0.02em;
 }
 
+.nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.nav a {
+    color: inherit;
+    text-decoration: none;
+    font-weight: 650;
+    padding: 10px 16px;
+    border: 1px solid #d3dae3;
+    border-radius: 999px;
+    background: #ffffff;
+}
+
+.nav a[aria-current="page"] {
+    background: #1b2430;
+    border-color: #1b2430;
+    color: #ffffff;
+}
+
+.summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.summary p {
+    margin: 0;
+    padding: 20px 24px;
+    background: #ffffff;
+    border: 1px solid #d3dae3;
+    border-radius: 12px;
+}
+
+.summary strong {
+    display: block;
+    font-size: 1.75rem;
+    line-height: 1.2;
+}
+
+.records {
+    display: grid;
+    gap: 16px;
+}
+
+.record {
+    background: #ffffff;
+    border: 1px solid #d3dae3;
+    border-radius: 12px;
+    padding: 24px 28px;
+}
+
+.record-head,
+.record-fields div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: baseline;
+}
+
+.record-head {
+    margin-bottom: 16px;
+}
+
+.record-id,
+.record-time {
+    margin: 0;
+}
+
+.record-id {
+    font-weight: 650;
+}
+
+.record-fields {
+    margin: 0;
+    display: grid;
+    gap: 12px;
+}
+
+.record-fields div {
+    padding-top: 12px;
+    border-top: 1px solid #e4e9ee;
+}
+
+.record-fields dt {
+    font-weight: 650;
+}
+
+.record-fields dd {
+    margin: 0;
+    text-align: right;
+}
+
+.details {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.details li {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #f4f7fa;
+}
+
+.empty {
+    margin: 0;
+    padding: 28px;
+    background: #ffffff;
+    border: 1px solid #d3dae3;
+    border-radius: 12px;
+}
+
 main {
     display: grid;
     gap: 24px;
@@ -151,6 +271,24 @@ main h2 {
 
     header h1 {
         font-size: 1.75rem;
+    }
+
+    .summary,
+    .record-head,
+    .record-fields div {
+        grid-template-columns: 1fr;
+    }
+
+    .record-fields div {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .record-fields dd,
+    .details {
+        text-align: left;
+        justify-content: flex-start;
     }
 
     main {

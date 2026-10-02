@@ -153,3 +153,13 @@ Entwicklungsstand: Neue Erfassungen speichern die deutsche Ortszeit. ID 5 behäl
 Zeitstempelbehandlung erneut geprüft. Keine weitere Codeänderung. `save_erfassung()` setzt `created_at` weiterhin mit `zoneinfo` und `Europe/Berlin`. Testdatensatz `2026-10-02 23:34:25+02:00` geprüft und danach nur dieser Datensatz gelöscht. ID 5 unverändert: `2026-10-02 20:36:11`, Google, Gravel, Specialized.
 
 Entwicklungsstand: Neue Erfassungen speichern die deutsche Ortszeit. ID 5 behält den bisherigen Zeitstempel.
+
+### 2026-10-02 23:42 (UTC+2)
+
+Verwaltungsbereich für gespeicherte Erfassungen. Neu erstellt: `templates/erfassungen.html`, `templates/header.html`. Geändert: `app/database.py`, `app/main.py`, `templates/index.html`, `static/style.css`. Keine Pakete installiert. Speichern und Auswahl unverändert. Keine Bearbeitung, kein Löschen, kein Import, kein Export.
+
+Navigation im Kopf: „Erfassung“ nach `/`, „Erfassungen“ nach `GET /erfassungen`. Die Liste lädt Erfassungen und Level-3-Werte in einer Join-Abfrage, ordnet die Werte in Python zu und sortiert nach Zeitpunkt in `Europe/Berlin`, neueste zuerst. Sichtbare Bezeichnungen: Herkunft, Interesse, Details. Datum und Uhrzeit werden nur für die Anzeige als `TT.MM.JJJJ` und `HH:MM` formatiert; der gespeicherte Zeitstempel bleibt unverändert. Oberhalb stehen Gesamtzahl und Anzahl von heute, berechnet mit `Europe/Berlin`. Ohne Datensätze erscheint „Noch keine Erfassungen vorhanden.“ Der Leerfall wurde an einer temporären Datenbank geprüft, nicht an der echten.
+
+`customer-state.service` neu gestartet und aktiv. `GET /` und `GET /erfassungen` liefern HTTP 200. ID 5 wird als 02.10.2026, 22:36, Google, Gravel, Specialized angezeigt. Temporäre Datensätze für Sortierung, Zuordnung und Zählung wurden danach nur diese Datensätze gelöscht. ID 5 ist unverändert. Bestehende Erfassungen bleiben erhalten.
+
+Entwicklungsstand: Erfassungsseite und Verwaltungsseite. Die Datenbank wird von der Liste nur gelesen.
