@@ -42,6 +42,46 @@ main {
     padding: 40px;
 }
 
+main h2 {
+    margin: 0 0 24px;
+    font-size: 1.25rem;
+    font-weight: 650;
+}
+
+.choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.choice {
+    font: inherit;
+    font-size: 1.25rem;
+    font-weight: 650;
+    min-height: 88px;
+    padding: 20px 16px;
+    border: 2px solid #c5ced8;
+    border-radius: 12px;
+    background: #f4f7fa;
+    color: inherit;
+    cursor: pointer;
+}
+
+.choice:hover {
+    border-color: #7f93a8;
+}
+
+.choice:focus-visible {
+    outline: 3px solid #1b2430;
+    outline-offset: 3px;
+}
+
+.choice[aria-pressed="true"] {
+    background: #1b2430;
+    border-color: #1b2430;
+    color: #ffffff;
+}
+
 @media (max-width: 900px) {
     .page {
         padding: 32px 20px 48px;
@@ -58,5 +98,14 @@ main {
     main {
         min-height: 360px;
         padding: 28px;
+    }
+
+    .choices {
+        gap: 12px;
+    }
+
+    .choice {
+        min-height: 76px;
+        font-size: 1.125rem;
     }
 }

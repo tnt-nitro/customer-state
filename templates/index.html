@@ -5,13 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Customer State</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/selection.js" defer></script>
 </head>
 <body>
     <div class="page">
         <header>
             <h1>Customer State</h1>
         </header>
-        <main></main>
+        <main>
+            <h2 id="awareness-heading">Wie ist der Kunde auf uns aufmerksam geworden?</h2>
+            <div class="choices" data-choice-group role="group" aria-labelledby="awareness-heading">
+                <button type="button" class="choice" aria-pressed="false">Empfehlung</button>
+                <button type="button" class="choice" aria-pressed="false">KI</button>
+                <button type="button" class="choice" aria-pressed="false">Google</button>
+                <button type="button" class="choice" aria-pressed="false">Leasingportal</button>
+                <button type="button" class="choice" aria-pressed="false">Arbeit</button>
+                <button type="button" class="choice" aria-pressed="false">Sonstiges</button>
+            </div>
+        </main>
     </div>
 </body>
 </html>

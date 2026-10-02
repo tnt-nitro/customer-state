@@ -61,3 +61,13 @@ Diensttest des Grundlayouts. `customer-state.service` neu gestartet. Keine Datei
 Ergebnis: Dienst aktiv, Start ohne Fehler im Journal. `GET /` liefert HTTP 200 mit Kopf „Customer State“, Inhaltsbereich und Verweis auf `/static/style.css`. `GET /static/style.css` liefert HTTP 200.
 
 Entwicklungsstand: unverändert gegenüber 01:11. Das Grundlayout läuft über den Dienst.
+
+### 2026-10-02 01:32 (UTC+2)
+
+Ebene 1 der Erfassung im zentralen Inhaltsbereich. Neu erstellt: `static/selection.js`. Geändert: `templates/index.html`, `static/style.css`. `app/main.py` unverändert. Keine Pakete installiert.
+
+Der Inhaltsbereich zeigt die Überschrift „Wie ist der Kunde auf uns aufmerksam geworden?“ und sechs große Buttons: Empfehlung, KI, Google, Leasingportal, Arbeit, Sonstiges. Die Auswahl läuft nur im Browser über `aria-pressed`. Genau ein Button kann ausgewählt sein; ein anderer Button hebt die vorherige Auswahl auf. Keine Speicherung, keine Datenbank, keine Ebene 2, keine Weiterleitung.
+
+`customer-state.service` neu gestartet und aktiv. `GET /`, `GET /static/style.css` und `GET /static/selection.js` liefern HTTP 200. Auswahlwechsel im Browser geprüft, auch auf Tabletbreite.
+
+Entwicklungsstand: Startseite mit Kopf „Customer State“ und Einzelauswahl Ebene 1 im Inhaltsbereich. Auswahl wird nicht gespeichert.
