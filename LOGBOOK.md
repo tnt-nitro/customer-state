@@ -81,3 +81,25 @@ Ebene 2 ist ein eigener Kartenbereich unter Ebene 1 und bleibt zunächst verborg
 `customer-state.service` neu gestartet und aktiv. `GET /`, `GET /static/style.css` und `GET /static/selection.js` liefern HTTP 200. Im Browser geprüft: Ebene 2 erscheint erst nach Ebene 1, beide Einzelauswahlen, Wechsel der Herkunft lässt Ebene 2 sichtbar. Auch auf Tabletbreite geprüft.
 
 Entwicklungsstand: Startseite mit Kopf und zwei Auswahlbereichen. Auswahl nur im Browser, nicht gespeichert.
+
+### 2026-10-02 20:44 (UTC+2)
+
+Ebene 3 der Erfassung ergänzt. Geändert: `templates/index.html`, `static/selection.js`. Keine neue Datei, `static/style.css` und `app/main.py` unverändert. Keine Pakete installiert.
+
+Ebene 3 ist ein eigener Kartenbereich und bleibt verborgen, bis in Ebene 2 ein Fahrradtyp gewählt wurde. Überschrift: „Wofür interessiert sich der Kunde?“. Die Buttons hängen vom Fahrradtyp ab und sind eine Mehrfachauswahl: erneuter Klick hebt nur diesen Button auf. Ein anderer Fahrradtyp tauscht die Buttons und setzt die Ebene-3-Auswahl zurück. Ein erneuter Klick auf denselben Fahrradtyp setzt nicht zurück. Eine Änderung nur in Ebene 1 lässt Fahrradtyp und Ebene-3-Auswahl bestehen. Keine Speicherung, keine Datenbank, keine weitere Ebene.
+
+Konfigurationen: MTB: Specialized, Leasing, Kauf, Reparatur. E-MTB: Specialized, PIVOT, AMFLOW, Leasing, Kauf, Reparatur. Gravel: PIVOT, Specialized, Leasing, Kauf, Reparatur. E-Gravel: Specialized, PIVOT, Leasing, Kauf, Reparatur. Kinderrad: woom, Leasing, Kauf, Reparatur. Lastenrad: Riese & Müller, Leasing, Kauf, Reparatur. Trekking: Riese & Müller, Specialized, Leasing, Kauf, Reparatur. Trekking vollgefedert: Riese & Müller, Specialized, AMFLOW, Leasing, Kauf, Reparatur.
+
+`customer-state.service` neu gestartet und aktiv. `GET /` liefert HTTP 200. Im Browser für alle acht Fahrradtypen die Buttonliste geprüft, Mehrfachauswahl und Abwahl, Reset beim Fahrradtypwechsel und Erhalt bei Wechsel nur in Ebene 1. Auch auf Tabletbreite geprüft.
+
+Entwicklungsstand: Startseite mit drei Auswahlbereichen. Auswahl nur im Browser, nicht gespeichert.
+
+### 2026-10-02 21:26 (UTC+2)
+
+Ebene 2 um Bekleidung und Werkstatt erweitert. Geändert: `templates/index.html`, `static/selection.js`. Auswahlmechanik unverändert. Die bisherigen acht Fahrradtypen und ihre Ebene-3-Listen sind unverändert. Keine neue Datei, kein Paket installiert.
+
+Ebene 2 hat jetzt 10 Einzelauswahlen. Bekleidung zeigt in Ebene 3: Helm, Trikot, Radhose, Handschuhe, Schuhe, Regenbekleidung, Jacke/Weste, Brille, Sonstiges. Werkstatt zeigt: Inspektion, Reparatur, Reklamation, Tuning, Umbau, Diagnose/Fehlersuche, Unfall/Schaden, Beratung, Sonstiges. Beide nutzen die vorhandene Mehrfachauswahl. Wechsel in Ebene 2 setzt Ebene 3 zurück. Wechsel nur in Ebene 1 erhält Ebene 2 und Ebene 3.
+
+`customer-state.service` neu gestartet und aktiv. `GET /` liefert HTTP 200. Im Browser alle acht bisherigen Fahrradtypen sowie Bekleidung und Werkstatt geprüft, dazu Mehrfachauswahl, Abwahl, Reset und Erhalt bei Wechsel nur in Ebene 1.
+
+Entwicklungsstand: drei Auswahlbereiche, Ebene 2 mit zehn Optionen. Auswahl nur im Browser, nicht gespeichert.
