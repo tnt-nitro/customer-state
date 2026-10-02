@@ -2,6 +2,7 @@
     var level2 = document.querySelector("[data-level='2']");
     var level3 = document.querySelector("[data-level='3']");
     var level3Choices = level3 ? level3.querySelector("[data-choice-group]") : null;
+    var saveButton = document.querySelector("[data-save-entry]");
 
     var interestsByBike = {
         "MTB": ["Specialized", "Leasing", "Kauf", "Reparatur"],
@@ -38,6 +39,7 @@
             button.addEventListener("click", function () {
                 var selected = button.getAttribute("aria-pressed") === "true";
                 button.setAttribute("aria-pressed", selected ? "false" : "true");
+                updateSaveButton();
             });
             level3Choices.appendChild(button);
         });
@@ -58,6 +60,7 @@
                 if (!alreadySelected && onChange) {
                     onChange(button.textContent);
                 }
+                updateSaveButton();
             });
         });
     }
@@ -74,4 +77,48 @@
     if (level2) {
         bindSingle(level2, showLevel3);
     }
+
+    function selectedLabels(section) {
+        if (!section) {
+            return [];
+        }
+
+        return Array.from(section.querySelectorAll(".choice")).filter(function (button) {
+            return button.getAttribute("aria-pressed") === "true";
+        }).map(function (button) {
+            return button.textContent;
+        });
+    }
+
+    function currentRecord() {
+        var level1Labels = selectedLabels(document.querySelector("[data-level='1']"));
+        var level2Labels = selectedLabels(level2);
+
+        return {
+            level1: level1Labels[0] || null,
+            level2: level2Labels[0] || null,
+            level3: selectedLabels(level3)
+        };
+    }
+
+    function updateSaveButton() {
+        if (!saveButton) {
+            return;
+        }
+
+        var record = currentRecord();
+        saveButton.disabled = !(record.level1 && record.level2 && record.level3.length > 0);
+    }
+
+    if (saveButton) {
+        saveButton.addEventListener("click", function () {
+            if (saveButton.disabled) {
+                return;
+            }
+
+            console.log(currentRecord());
+        });
+    }
+
+    updateSaveButton();
 })();

@@ -90,6 +90,38 @@ main h2 {
     color: #ffffff;
 }
 
+.save-bar {
+    margin-top: 32px;
+    padding-top: 32px;
+    border-top: 1px solid #d3dae3;
+}
+
+.save {
+    font: inherit;
+    font-size: 1.25rem;
+    font-weight: 650;
+    width: 100%;
+    min-height: 88px;
+    padding: 20px 16px;
+    border: 2px solid #1b2430;
+    border-radius: 12px;
+    background: #1b2430;
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.save:disabled {
+    background: #eef1f4;
+    border-color: #d3dae3;
+    color: #8b97a6;
+    cursor: not-allowed;
+}
+
+.save:focus-visible {
+    outline: 3px solid #1b2430;
+    outline-offset: 3px;
+}
+
 @media (max-width: 900px) {
     .page {
         padding: 32px 20px 48px;
@@ -116,6 +148,16 @@ main h2 {
     }
 
     .choice {
+        min-height: 76px;
+        font-size: 1.125rem;
+    }
+
+    .save-bar {
+        margin-top: 24px;
+        padding-top: 24px;
+    }
+
+    .save {
         min-height: 76px;
         font-size: 1.125rem;
     }

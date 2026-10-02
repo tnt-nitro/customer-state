@@ -103,3 +103,13 @@ Ebene 2 hat jetzt 10 Einzelauswahlen. Bekleidung zeigt in Ebene 3: Helm, Trikot,
 `customer-state.service` neu gestartet und aktiv. `GET /` liefert HTTP 200. Im Browser alle acht bisherigen Fahrradtypen sowie Bekleidung und Werkstatt geprüft, dazu Mehrfachauswahl, Abwahl, Reset und Erhalt bei Wechsel nur in Ebene 1.
 
 Entwicklungsstand: drei Auswahlbereiche, Ebene 2 mit zehn Optionen. Auswahl nur im Browser, nicht gespeichert.
+
+### 2026-10-02 21:41 (UTC+2)
+
+Abschlussbutton unter Ebene 3 ergänzt. Geändert: `templates/index.html`, `static/style.css`, `static/selection.js`. Keine neue Datei, `app/main.py` unverändert. Keine Pakete installiert. Auswahlmechanik der drei Ebenen unverändert.
+
+Der Button „Erfassung speichern“ steht unter den Ebene-3-Buttons, durch eine Trennlinie abgesetzt, und ist zunächst deaktiviert. Er wird nur aktiv, wenn Ebene 1, Ebene 2 und mindestens eine Ebene-3-Auswahl gesetzt sind. Fällt eine Bedingung weg, wird er wieder deaktiviert. Ein Klick speichert nichts und setzt nichts zurück. Er schreibt nur das aktuelle Objekt `{ level1, level2, level3 }` in die Browser-Konsole. `level3` enthält die ausgewählten Bezeichnungen in der angezeigten Reihenfolge.
+
+`customer-state.service` neu gestartet und aktiv. `GET /` liefert HTTP 200. Geprüft: deaktiviert ohne Auswahl, nur mit Ebene 1 und mit Ebene 1 plus Ebene 2; aktiv mit mindestens einer Ebene-3-Auswahl; mehrere Ebene-3-Werte vollständig im Objekt; Wechsel von Ebene 2 deaktiviert; erneute Ebene-3-Auswahl aktiviert wieder; Wechsel nur von Ebene 1 lässt Ebene 2, Ebene 3 und den aktiven Button bestehen. Beispielobjekt: `{ level1: "Google", level2: "E-MTB", level3: ["Specialized", "Leasing"] }`. Auch auf Tabletbreite geprüft.
+
+Entwicklungsstand: drei Auswahlbereiche und ein noch nicht speichernder Abschlussbutton. Auswahl nur im Browser.
