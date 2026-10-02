@@ -35,11 +35,19 @@ header h1 {
 }
 
 main {
+    display: grid;
+    gap: 24px;
+}
+
+.step {
     background: #ffffff;
     border: 1px solid #d3dae3;
     border-radius: 12px;
-    min-height: 420px;
     padding: 40px;
+}
+
+.step[hidden] {
+    display: none;
 }
 
 main h2 {
@@ -96,7 +104,10 @@ main h2 {
     }
 
     main {
-        min-height: 360px;
+        gap: 20px;
+    }
+
+    .step {
         padding: 28px;
     }
 

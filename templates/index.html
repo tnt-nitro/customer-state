@@ -13,15 +13,30 @@
             <h1>Customer State</h1>
         </header>
         <main>
-            <h2 id="awareness-heading">Wie ist der Kunde auf uns aufmerksam geworden?</h2>
-            <div class="choices" data-choice-group role="group" aria-labelledby="awareness-heading">
-                <button type="button" class="choice" aria-pressed="false">Empfehlung</button>
-                <button type="button" class="choice" aria-pressed="false">KI</button>
-                <button type="button" class="choice" aria-pressed="false">Google</button>
-                <button type="button" class="choice" aria-pressed="false">Leasingportal</button>
-                <button type="button" class="choice" aria-pressed="false">Arbeit</button>
-                <button type="button" class="choice" aria-pressed="false">Sonstiges</button>
-            </div>
+            <section class="step" data-level="1">
+                <h2 id="awareness-heading">Wie ist der Kunde auf uns aufmerksam geworden?</h2>
+                <div class="choices" data-choice-group role="group" aria-labelledby="awareness-heading">
+                    <button type="button" class="choice" aria-pressed="false">Empfehlung</button>
+                    <button type="button" class="choice" aria-pressed="false">KI</button>
+                    <button type="button" class="choice" aria-pressed="false">Google</button>
+                    <button type="button" class="choice" aria-pressed="false">Leasingportal</button>
+                    <button type="button" class="choice" aria-pressed="false">Arbeit</button>
+                    <button type="button" class="choice" aria-pressed="false">Sonstiges</button>
+                </div>
+            </section>
+            <section class="step" data-level="2" hidden>
+                <h2 id="bike-heading">Für welchen Fahrradtyp interessiert sich der Kunde?</h2>
+                <div class="choices" data-choice-group role="group" aria-labelledby="bike-heading">
+                    <button type="button" class="choice" aria-pressed="false">MTB</button>
+                    <button type="button" class="choice" aria-pressed="false">E-MTB</button>
+                    <button type="button" class="choice" aria-pressed="false">Gravel</button>
+                    <button type="button" class="choice" aria-pressed="false">E-Gravel</button>
+                    <button type="button" class="choice" aria-pressed="false">Kinderrad</button>
+                    <button type="button" class="choice" aria-pressed="false">Lastenrad</button>
+                    <button type="button" class="choice" aria-pressed="false">Trekking</button>
+                    <button type="button" class="choice" aria-pressed="false">Trekking vollgefedert</button>
+                </div>
+            </section>
         </main>
     </div>
 </body>

@@ -71,3 +71,13 @@ Der Inhaltsbereich zeigt die Überschrift „Wie ist der Kunde auf uns aufmerksa
 `customer-state.service` neu gestartet und aktiv. `GET /`, `GET /static/style.css` und `GET /static/selection.js` liefern HTTP 200. Auswahlwechsel im Browser geprüft, auch auf Tabletbreite.
 
 Entwicklungsstand: Startseite mit Kopf „Customer State“ und Einzelauswahl Ebene 1 im Inhaltsbereich. Auswahl wird nicht gespeichert.
+
+### 2026-10-02 09:24 (UTC+2)
+
+Ebene 2 der Erfassung ergänzt. Geändert: `templates/index.html`, `static/style.css`, `static/selection.js`. Keine neue Datei, `app/main.py` unverändert. Keine Pakete installiert.
+
+Ebene 2 ist ein eigener Kartenbereich unter Ebene 1 und bleibt zunächst verborgen. Nach einer Auswahl in Ebene 1 wird sie sichtbar. Überschrift: „Für welchen Fahrradtyp interessiert sich der Kunde?“ Buttons: MTB, E-MTB, Gravel, E-Gravel, Kinderrad, Lastenrad, Trekking, Trekking vollgefedert. Beide Ebenen sind unabhängige Einzelauswahlen über dieselbe Logik in `selection.js`. Ebene 1 bleibt sichtbar und markiert. Ein Wechsel der Herkunft blendet Ebene 2 nicht wieder aus und setzt eine bereits gewählte Fahrradauswahl nicht zurück. Keine Speicherung, keine Datenbank, keine Ebene 3.
+
+`customer-state.service` neu gestartet und aktiv. `GET /`, `GET /static/style.css` und `GET /static/selection.js` liefern HTTP 200. Im Browser geprüft: Ebene 2 erscheint erst nach Ebene 1, beide Einzelauswahlen, Wechsel der Herkunft lässt Ebene 2 sichtbar. Auch auf Tabletbreite geprüft.
+
+Entwicklungsstand: Startseite mit Kopf und zwei Auswahlbereichen. Auswahl nur im Browser, nicht gespeichert.
