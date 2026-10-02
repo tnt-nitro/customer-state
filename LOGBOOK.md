@@ -113,3 +113,15 @@ Der Button „Erfassung speichern“ steht unter den Ebene-3-Buttons, durch eine
 `customer-state.service` neu gestartet und aktiv. `GET /` liefert HTTP 200. Geprüft: deaktiviert ohne Auswahl, nur mit Ebene 1 und mit Ebene 1 plus Ebene 2; aktiv mit mindestens einer Ebene-3-Auswahl; mehrere Ebene-3-Werte vollständig im Objekt; Wechsel von Ebene 2 deaktiviert; erneute Ebene-3-Auswahl aktiviert wieder; Wechsel nur von Ebene 1 lässt Ebene 2, Ebene 3 und den aktiven Button bestehen. Beispielobjekt: `{ level1: "Google", level2: "E-MTB", level3: ["Specialized", "Leasing"] }`. Auch auf Tabletbreite geprüft.
 
 Entwicklungsstand: drei Auswahlbereiche und ein noch nicht speichernder Abschlussbutton. Auswahl nur im Browser.
+
+### 2026-10-02 22:24 (UTC+2)
+
+SQLite-Grundlage angelegt. Neu erstellt: `app/database.py`. Geändert: `app/main.py` (ruft nur `init_db()` auf). Oberfläche, Templates, CSS und JavaScript unverändert. Kein Speicher-Endpunkt, keine Pakete installiert.
+
+Datenbankdatei: `data/customer_state.db`, über `sqlite3` aus der Standardbibliothek. `init_db()` legt die Tabellen mit `CREATE TABLE IF NOT EXISTS` an und überschreibt oder leert eine vorhandene Datenbank nicht. `created_at` ist `TEXT NOT NULL` mit Default `datetime('now', 'localtime')`, Format `YYYY-MM-DD HH:MM:SS`, damit Datum, Wochentag und Uhrzeit später auswertbar sind. `erfassung_level3.erfassung_id` verweist auf `erfassungen.id` mit `ON DELETE CASCADE`. Fremdschlüssel werden pro Verbindung mit `PRAGMA foreign_keys = ON` aktiviert.
+
+`.gitignore` schließt `*.db` bereits aus. Die Datenbankdatei erscheint nicht in `git status`.
+
+`customer-state.service` neu gestartet und aktiv. `GET /` liefert HTTP 200. Schema, Fremdschlüssel, Cascade und erneutes Initialisieren ohne Datenverlust geprüft. Testdaten wurden wieder entfernt. Beide Tabellen sind leer.
+
+Entwicklungsstand: Erfassung weiterhin nur im Browser. Die Datenbank existiert, ist aber noch nicht mit dem Speicherbutton verbunden.
