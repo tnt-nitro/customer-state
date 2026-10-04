@@ -173,3 +173,247 @@ Zeitraum 01.01.2025 bis 31.12.2025. 2.975 neue Erfassungen, nur an geöffneten T
 ID 5 bleibt `2026-10-02 22:36:11+02:00`, Google, Gravel, Specialized. ID 8 bleibt `2026-10-02 23:37:10+02:00`, Leasingportal, Kinderrad, woom. Gesamtzahl in der Datenbank: 2.977. Dienstneustart nicht nötig, die Liste liest bei jedem Aufruf. `GET /` und `GET /erfassungen` liefern HTTP 200. Die Liste zeigt 2.977 Erfassungen, 0 heute, oben ID 8 und ID 5.
 
 Entwicklungsstand: Erfassung und Verwaltung unverändert. Die Datenbank enthält die beiden bestehenden Datensätze und die Demodaten 2025.
+
+### 2026-10-03 01:02 (UTC+2)
+
+Analyse-Dashboard. Neu erstellt: `templates/auswertung.html`, `static/auswertung.js`. Geändert: `app/database.py`, `app/main.py`, `templates/header.html`, `static/style.css`, `scripts/generate_demodaten.py`. Keine Pakete, keine externen Bibliotheken. Kein Commit.
+
+Neue Route `GET /auswertung`. Navigation: Erfassung, Erfassungen, Auswertung. Die Seite rechnet Kennzahlen, Verläufe und Tabellen aus einer Join-Abfrage in SQLite und verdichtet sie in Python. Dieselben gefilterten Erfassungen speisen alle Bereiche. Keine Zahlen aus dem Plausibilitätsbericht.
+
+Datenmodus Alle, Echtdaten (`is_demo = 0`) und Demodaten (`is_demo = 1`), Standard Demodaten. Die Spalte `is_demo` wird beim Start ergänzt, falls sie fehlt. Bestehende Erfassungen aus 2025 wurden dabei einmalig als Demodaten gekennzeichnet. Zeitpunkt, Herkunft, Interesse und Details blieben unverändert. Neue Speicherungen setzen `is_demo = 0`. Der Generator schreibt künftige Demodaten mit `is_demo = 1`; er wurde nicht erneut ausgeführt.
+
+Filter über Query-Parameter, kombinierbar: Datenmodus, Zeitraum (Heute, 7 Tage, 30 Tage, Dieses Jahr, Gesamt, Benutzerdefiniert mit Von/Bis), Herkunft, Interesse. Ungültige Werte ergeben HTTP 200 und werden ignoriert. Zeitzone `Europe/Berlin`; der lokale Kalendertag kommt aus dem gespeicherten Offset, nicht aus UTC.
+
+Kennzahlen: Anzahl, Durchschnitt je Tag mit Erfassungen, stärkster Tag, stärkster Monat, häufigste Herkunft, häufigstes Interesse. Diagramme mit HTML/CSS: Monate Januar bis Dezember, bei kurzen Zeiträumen Tage; Wochentage inklusive 0, dazu Erfassungen je Öffnungsstunde (Mo–Fr 9 Stunden, Sa 5 Stunden, So geschlossen, Kalendertage ohne eigenen Feiertagskalender); Tageszeit nur in den Öffnungsstunden. Herkunft und Interessen mit Anzahl und Prozent. Level 3 ist Mehrfachauswahl: Prozent bezieht sich auf Erfassungen mit diesem Detail und summiert sich nicht zu 100 %. Kombinationen Herkunft → Interesse → Detail nach Häufigkeit.
+
+Gegenprüfung Demodaten/Gesamt mit dem Bericht: 2.975 Erfassungen, Herkunft und Interessen und Monate und Wochentage und Stunden stimmen überein. Stärkste Monate Mai und September mit je 356. Häufigste Herkunft Empfehlung, häufigstes Interesse Werkstatt. Echtdaten/Gesamt: 2. Alle/Gesamt: 2.977. Filter Google 687, Werkstatt 1.122, Google und Werkstatt 290. Leerer Zeitraum, ungültige Parameter, Sommerzeit, Winterzeit und die Jahresgrenze geprüft. Die beiden echten Erfassungen liegen nach 19:00 Uhr und erscheinen deshalb als außerhalb der Öffnungsstunden, nicht in einer Nullstunde.
+
+`customer-state.service` neu gestartet. `GET /`, `GET /erfassungen`, `GET /auswertung` liefern HTTP 200. Speichern im Browser geprüft und nur diese Testerfassung gelöscht. ID 5 und ID 8 unverändert. Weiterhin 2.975 Demodatensätze.
+
+Entwicklungsstand: Erfassung, Verwaltung und Auswertung. Die Datenbank enthält die zwei echten Datensätze und die Demodaten 2025.
+
+### 2026-10-03 20:08 (UTC+2)
+
+Mehrfachauswahl auf allen drei Ebenen, Zeitmessung abgeschlossener Erfassungen und Aktivitätskalender. Geändert: `app/database.py`, `app/main.py`, `static/selection.js`, `static/style.css`, `templates/index.html`, `templates/erfassungen.html`, `templates/auswertung.html`, `scripts/generate_demodaten.py`. Keine Pakete, keine externen Bibliotheken. Kein Commit, kein Push. Die noch nicht committete Auswertung bleibt im Arbeitsbaum.
+
+Schema, relational, ohne JSON und ohne kommaseparierte Werte: `erfassungen` behält `id`, `created_at`, `is_demo` und erhält `started_at`, `level1_completed_at`, `level2_completed_at`, `completed_at`, alle nullable. `erfassung_herkunft` und `erfassung_interesse` hängen an der Erfassung, `erfassung_detail` hängt am jeweiligen Interesse. Alte Spalten `level1` und `level2` sowie die Tabelle `erfassung_level3` sind nach der Migration entfernt. Dauerwerte werden nicht gespeichert, sie ergeben sich aus den Zeitpunkten.
+
+Vor der Migration lag eine Kopie unter `/tmp/customer_state_pre_migration.db`: 2.983 Zeilen, davon 2.975 Demodaten und 8 Echtdaten. Der Dienst war für die Live-Migration kurz gestoppt. Jede alte Erfassung wurde mit derselben ID übernommen: eine Herkunft, ein Interesse, die bisherigen Details in derselben Reihenfolge, `created_at` und `is_demo` unverändert, alle vier Zeitpunkte leer. Prüfung danach: keine verwaisten Beziehungen, keine doppelten Herkünfte, kein Interesse ohne Detail, keine gesetzte Zeitmessung. Ein zweiter Start legt nichts neu an. Die Datenbankdatei bleibt über `*.db` außerhalb von Git.
+
+Ebene 1 und Ebene 2 sind Mehrfachauswahl. Ein Klick schaltet ein, ein erneuter Klick aus. „Weiter“ bleibt deaktiviert, bis mindestens ein Wert aktiv ist. Ebene 1 bleibt sichtbar, Ebene 2 ebenfalls. Ebene 3 zeigt je gewähltem Interesse eine eigene Gruppe. Details werden an genau dieses Interesse gespeichert.
+
+Zeitmessung beginnt beim ersten Auswahlklick in Ebene 1, nicht beim Laden. Der Browser sendet `started_at`, `level1_completed_at` und `level2_completed_at`. `completed_at` setzt der Server in `Europe/Berlin`. Die Folge muss `started_at` ≤ `level1_completed_at` ≤ `level2_completed_at` ≤ `completed_at` sein, sonst HTTP 400 „Die Zeitangaben sind ungültig.“ Unbekannte Werte, Details der falschen Kategorie und unvollständige Angaben werden abgelehnt. Die Speicherung ist eine Transaktion. Abgebrochene Erfassungen schreiben keine Zeile. Bestehende Daten bekommen keine erfundenen Etappenzeiten.
+
+`POST /api/erfassungen` nimmt `level1` als Liste und `level2` als Liste von Objekten mit `value` und `level3`. `/erfassungen` zeigt mehrere Herkünfte und je Interesse die zugehörigen Details. Die Auswertung zählt eine Erfassung pro enthaltenem Wert nur einmal. Filter treffen auch dann, wenn weitere Werte daneben stehen. Prozentwerte von Herkunft, Interesse und Details sind als Anteil gekennzeichnet und summieren sich nicht zu 100 %. „Erfassungsdauer“ nutzt nur Zeilen mit Zeitmessung. Ohne solche Zeilen steht „Noch keine Erfassungen mit Zeitmessung vorhanden.“ Der Aktivitätskalender ist HTML/CSS, Spalten sind Wochen, Zeilen Wochentage inklusive Sonntag. Intensität ist 0, niedrig, mittel, hoch, sehr hoch, aus den Quartilen der Tage mit Erfassungen im aktuellen Filter. Tooltip und `aria-label` nennen Wochentag, Datum und Anzahl. Der Kalender folgt Datenmodus, Zeitraum, Herkunft und Interesse. Bei schmaler Breite scrollt nur der Kalender, nicht die Seite.
+
+Der Generator kann künftig mehrere Herkünfte, mehrere Interessen und je Interesse passende Details schreiben und lässt die Zeitpunkte leer. Er wurde nicht ausgeführt. Die 2.975 Demodatensätze wurden nicht neu erzeugt.
+
+Geprüft: `GET /`, `GET /erfassungen`, `GET /auswertung` jeweils HTTP 200. Im Browser Mehrfachauswahl und „Weiter“ auf Ebene 1 und 2, getrennte Detailgruppen für E-MTB und Werkstatt, Fehlerfall behält die Auswahl, Speichern setzt die Maske zurück. Temporäre Erfassung ID 2994: Empfehlung und Google, E-MTB mit Specialized und Leasing, Werkstatt mit Inspektion und Reparatur, Zeitfolge gültig, Gesamtdauer 51 Sekunden, Median 51 Sekunden, Klasse 30–60 Sekunden. Filter Google, Empfehlung, E-MTB und Werkstatt enthielten sie. Danach nur diese ID gelöscht, Kindzeilen per Cascade mit. Demodaten/Gesamt danach unverändert 2.975. Der Kalender zeigt für Freitag, 23.05.2025 weiterhin 25 Erfassungen, Intensität sehr hoch, Wert aus der Datenbank. Sonntag 05.01.2025 bleibt mit 0 sichtbar. Zeitmessung danach bei allen 2.983 Zeilen leer.
+
+ID 5 bleibt `2026-10-02 22:36:11+02:00`, Google, Gravel, Specialized, ohne Zeitmessung. ID 8 bleibt `2026-10-02 23:37:10+02:00`, Leasingportal, Kinderrad, woom, ohne Zeitmessung. Neben diesen beiden lagen vor der Migration bereits sechs weitere echte Erfassungen vom 03.10.2026, IDs 2988 bis 2993. Sie wurden mitmigriert und nicht gelöscht. Echtdaten danach: 8.
+
+Entwicklungsstand: Mehrfachauswahl, zugeordnete Details, Zeitpunkte nur bei neuen abgeschlossenen Erfassungen, Dauerauswertung und Aktivitätskalender. Datenbank: 2.975 Demodatensätze und 8 Echtdatensätze. Kein Commit.
+
+### 2026-10-03 20:15 (UTC+2)
+
+Mehrfachauswahl in der Erfassung war im Browser nicht angekommen. Geändert: `app/main.py`, `templates/index.html`, `templates/erfassungen.html`, `templates/auswertung.html`. Keine Datenbankänderung. Kein Commit.
+
+Ursache: Die Seite lud das neue HTML mit „Weiter“, der Browser behielt aber `selection.js` aus dem alten Einzelauswahl-Stand im Cache und forderte die Datei nicht neu an. Dieses Skript löscht bei einem zweiten Klick die vorherige Auswahl und aktiviert „Weiter“ nicht. Dadurch blieben Ebene 2 und Ebene 3 unerreichbar.
+
+Statische Dateien werden jetzt mit `Cache-Control: no-cache` ausgeliefert. Stylesheet und Skripte hängen am Änderungszeitpunkt der Datei, zum Beispiel `/static/selection.js?v=1791050750`. Die Seiten `/`, `/erfassungen` und `/auswertung` senden ebenfalls `no-cache`.
+
+Im Browser geprüft, ohne zu speichern: eine Herkunft aktiviert „Weiter“, eine zweite Herkunft bleibt zusätzlich aktiv. Dasselbe auf Ebene 2. Ebene 3 zeigt E-MTB und Werkstatt getrennt, Specialized und Leasing sowie Inspektion und Reparatur bleiben gleichzeitig aktiv. `GET /`, `GET /erfassungen` und `GET /auswertung` liefern HTTP 200. Dienst neu gestartet.
+
+Entwicklungsstand: Mehrfachauswahl gilt in allen drei Ebenen, sobald die Seite neu geladen wird.
+
+### 2026-10-03 20:27 (UTC+2)
+
+Etappen der Zeitmessung und Anzeige der Dauer. Geändert: `app/database.py`, `app/main.py`, `static/selection.js`, `static/style.css`, `templates/erfassungen.html`, `templates/auswertung.html`. Keine Pakete. Kein Commit. Bestehende Zeilen nicht gelöscht und nicht mit erfundenen Klickzeiten gefüllt.
+
+Neue nullable Spalten `level2_started_at` und `level3_started_at`, per `ALTER TABLE` ergänzt. Gemessen wird: erster Klick Ebene 1 bis „Weiter“, dann bis zum ersten Klick in Ebene 2, dann bis „Weiter“ in Ebene 2, dann bis zum ersten Klick in Ebene 3, dann bis zum Speichern. „Start bis Ende“ ist erster Klick Ebene 1 bis Speichern. Dauern werden berechnet, nicht zusätzlich gespeichert. Die Folge der Zeitpunkte wird serverseitig geprüft.
+
+`/erfassungen` zeigt je Erfassung die vorhandenen Etappen. Ohne Zeitpunkte steht „Zeitmessung nicht vorhanden.“ Die drei Erfassungen 2995, 2996 und 2997 haben Ebene 1 und Start bis Ende, weil die Zwischenklicks damals noch nicht gespeichert wurden. Die Auswertung „Erfassungsdauer“ folgt Zeitraum, Herkunft und Interesse und hängt nicht am Datenmodus, damit die gemessenen Erfassungen auch bei Demodaten sichtbar sind. Je Etappe Durchschnitt, Median und Anzahl, dazu die Verteilung der Gesamtdauer.
+
+Geprüft: ungültige Zeitfolge HTTP 400 ohne neue Zeile. Eine vollständige Testerfassung mit allen sechs Zeitpunkten, danach nur diese Zeile gelöscht. Danach 2.975 Demodaten und 11 Echtdaten, davon drei mit Teilmessung. ID 5 und ID 8 ohne Zeitmessung. `GET /`, `GET /erfassungen`, `GET /auswertung` HTTP 200. Sichtbar: Ebene 1 Ø 2 s, Start bis Ende Ø 31 s, Median 35 s, eine Erfassung unter 30 Sekunden und zwei zwischen 30 und 60 Sekunden.
+
+Entwicklungsstand: Neue Erfassungen messen alle Etappen. Die drei schon gespeicherten Messungen zeigen Ebene 1 und die Gesamtdauer.
+
+### 2026-10-03 20:39 (UTC+2)
+
+Verteilung der Gesamtdauer unter 30 Sekunden feiner aufgeteilt. Geändert: `app/database.py`. Keine Datenänderung. Kein Commit.
+
+Statt einer Klasse „unter 30 Sekunden“ gibt es „unter 10 Sekunden“, „10–20 Sekunden“ und „20–30 Sekunden“. Die Klassen ab 30 Sekunden bleiben. Aktuell: eine Erfassung unter 10 Sekunden, eine zwischen 10 und 20 Sekunden, keine zwischen 20 und 30 Sekunden, zwei zwischen 30 und 60 Sekunden. `GET /auswertung` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 20:42 (UTC+2)
+
+Klassen der Gesamtdauer auf 5-Sekunden-Schritte bis 60 Sekunden gestellt, danach „über 1 Minute“. Geändert: `app/database.py`. Keine Datenänderung. Kein Commit. Ergänzt sind „unter 10 Sekunden“, „35–40 Sekunden“ und „45–50 Sekunden“, damit keine Dauer ohne Klasse bleibt. Aktuell: 1 unter 10 Sekunden, 1 in 10–15, 1 in 35–40, 1 in 50–55. `GET /auswertung` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 21:00 (UTC+2)
+
+Dauer an den Ebenen, Tagesliste mit Hotmap und Zeitraumvergleich. Neu: `app/periods.py`. Geändert: `app/database.py`, `app/main.py`, `templates/erfassungen.html`, `templates/auswertung.html`, `static/auswertung.js`, `static/style.css`. Keine Daten gelöscht, keine Zeiten erfunden. Kein Commit.
+
+In `/erfassungen` steht die Dauer an der Ebene. Ebene 1 zeigt die Etappe vom ersten Klick bis „Weiter“. Ebene 2 und Ebene 3 zeigen zuerst die Verweildauer ohne Aktion bis zum ersten Klick, danach die Etappe bis „Weiter“ beziehungsweise bis zum Speichern. Darunter steht Start bis Ende. Ohne Messung bleibt „Zeitmessung nicht vorhanden.“
+
+Die Hotmap liegt über der Liste. Angezeigt wird das Jahr des gewählten Tages. Ohne Auswahl ist der aktuelle Tag geladen. Ein Klick auf ein Feld lädt genau diesen Tag, ein Jahreslink das letzte Datum mit Erfassungen in diesem Jahr. Freitag, 23.05.2025 bleibt bei 25 Erfassungen.
+
+`/auswertung` vergleicht zwei Zeiträume nebeneinander: Tag, Kalenderwoche, Monat, hessische Schulferien, Ostern (Karfreitag bis Ostermontag), Weihnachten (24.–26.12.) und Brückentage. Brückentage sind der Freitag nach einem Donnerstag-Feiertag, der Donnerstag vor einem Freitag-Feiertag und der Montag vor einem Dienstag-Feiertag. Der Vergleich folgt Datenmodus, Herkunft und Interesse, nicht dem übrigen Zeitraumfilter. Standard bei Demodaten: 31.12.2025 gegen 30.12.2025. Sommerferien 2025 haben 366 Erfassungen, Ostern 2025 als Festtag 10. `GET /`, `GET /erfassungen` und `GET /auswertung` liefern HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 21:15 (UTC+2)
+
+Zeitraumvergleich auf eine eigene Seite gelegt. Neu: `templates/vergleich.html`, `static/vergleich.js`. Geändert: `app/main.py`, `app/database.py`, `app/periods.py`, `templates/auswertung.html`, `templates/header.html`, `static/auswertung.js`, `static/style.css`. Keine Daten gelöscht. Kein Commit.
+
+`/auswertung` enthält den Vergleich nicht mehr. Navigation: Erfassung, Erfassungen, Auswertung, Vergleich. Route `GET /vergleich`.
+
+Die Art wird einmal gewählt und gilt für links und rechts: Tag, Kalenderwoche, Monat, Schulferien, Festtag, Brückentag. Jede Seite zeigt die Heatmap ihres Jahres. Markiert sind die Tage des gewählten Zeitraums. Ein Klick auf ein Feld setzt nur diese Seite. Bei Schulferien, Festtag und Brückentag sind nur die passenden Tage anklickbar. Datenmodus, Herkunft und Interesse bleiben Filter. Der Zeitraumfilter der Auswertung gilt hier nicht.
+
+Standard bei Demodaten und Tag: 31.12.2025 gegen 30.12.2025. Schulferien ohne weitere Wahl: Weihnachtsferien 2025/2026 gegen Weihnachtsferien 2024/2025. Ein Klick auf die Sommerferien links lässt rechts die Weihnachtsferien stehen: 366 gegen 41 Erfassungen. `GET /`, `GET /erfassungen`, `GET /auswertung` und `GET /vergleich` liefern HTTP 200. Bei 768 px bleibt die Seite ohne seitlichen Überlauf, die Heatmap scrollt in ihrer Spalte. Dienst neu gestartet.
+
+### 2026-10-03 21:31 (UTC+2)
+
+Gleiches Seitenmaß und gleiche Lage der Heatmap. Geändert: `app/main.py`, `templates/index.html`, `templates/erfassungen.html`, `templates/auswertung.html`, `templates/vergleich.html`, `static/style.css`, `static/selection.js`. Keine Datenänderung. Kein Commit.
+
+Alle vier Seiten nutzen dieselbe Breite. Erfassung, Erfassungen, Auswertung und Vergleich haben oben einen Bereich gleicher Höhe. Darunter beginnt die Aktivität an derselben Stelle und bleibt im sichtbaren Bereich. In der Auswertung steht die Aktivität direkt unter dem Datenmodus, vor den Kennzahlen. Im Vergleich liegen die beiden Heatmaps nebeneinander auf dieser Höhe. Auf der Erfassung zeigt dieselbe Jahresansicht den aktuellen Tag; ein Klick öffnet den Tag in den Erfassungen. Ebene 2 und Ebene 3 folgen unter der Heatmap. `GET /`, `GET /erfassungen`, `GET /auswertung` und `GET /vergleich` liefern HTTP 200. Demodaten gesamt bleiben 2.975. Bei 768 px kein seitlicher Überlauf. Dienst neu gestartet.
+
+### 2026-10-03 21:40 (UTC+2)
+
+Erfassung ohne Heatmap, eine Ebene nach der anderen, Buttons hochkant. Geändert: `app/main.py`, `templates/index.html`, `static/selection.js`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Die Erfassung zeigt keine Aktivität mehr. Sichtbar ist immer nur eine Ebene: zuerst Ebene 1, nach Weiter nur Ebene 2, danach nur Ebene 3. Der Seitenrahmen mit Kopfzeile bleibt. Die Auswahl steht in einer Spalte von 420 Pixeln, untereinander, damit dieselbe Maske später in einer Android-App liegen kann. Erfassungen, Auswertung und Vergleich behalten die Desktop-Heatmap. Geprüft ohne Speichern: nur die jeweils aktive Ebene, eine Buttonspalte, bei 390 px Breite kein seitlicher Überlauf. `GET /` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 21:44 (UTC+2)
+
+Hinweis nach dem Speichern an die Frage von Ebene 1 gelegt. Geändert: `app/database.py`, `app/main.py`, `templates/index.html`, `static/selection.js`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Nach einem Durchlauf von Ebene 1 bis 3 steht nicht mehr „Erfassung gespeichert“ über der Ebene. Neben „Wie ist der Kunde auf uns aufmerksam geworden?“ steht in kleinerer Schrift „Letzte Erfassung:“ mit Wochentag, Uhrzeit und Datum der letzten echten Erfassung, zum Beispiel Samstag 21:39:41 03:10:2026. Ein Fehler beim Speichern bleibt als Hinweis stehen. `GET /` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 22:10 (UTC+2)
+
+Feste Handyfläche, Punkteanzeige und Korrekturen. Geändert: `app/database.py`, `app/main.py`, `templates/index.html`, `templates/auswertung.html`, `static/selection.js`, `static/style.css`. Neue Tabellen `korrektur` und `korrektur_status`. Neue Spalten `level2_opened_at` und `level3_opened_at` an `erfassungen`. Keine Erfassung gelöscht. Kein Commit.
+
+Die Erfassung ist immer 420×640 Pixel, auf schmalen Fenstern nur schmaler, nicht flacher. Die Buttons stehen zweispaltig, gleich groß, und beginnen und enden auf allen drei Ebenen an derselben Stelle. „Weiter“ und „Auswahl bestätigen“ liegen im selben Feld. Drei Punkte: auf Ebene 1 einer gefüllt, auf Ebene 2 zwei, auf Ebene 3 drei. Nur gefüllte Punkte sind klickbar und öffnen diese Ebene ohne Auswahl. Zurück auf Ebene 1 setzt die Zeit auf 0:00 und zeigt „Letzte Erfassung: Abgebrochen“ in Rot. Eine gespeicherte Erfassung bleibt grün. Von Ebene 3 nach Ebene 2 ist Ebene 2 leer, die Zeit von Ebene 2 beginnt neu. Die Verweildauer zählt ab dem neuen Öffnen, damit ein Rücksprung die Etappe nicht verlängert. Jeder Rücksprung speichert Ausgangsebene, Zielebene, vergangene Sekunden und den damaligen Stand. In der Auswertung zeigt „Korrekturen“ Tageszeit, Rücksprung und Stand, unabhängig vom Datenmodus. Hintergrund, Logos und Farben aus dem Mockup sind nicht übernommen. Beim Prüfen sind zwei Korrekturen entstanden (Ebene 3 nach 2, Ebene 2 nach 1); es wurde keine Erfassung gespeichert. Demodaten bleiben 2.975, echte Erfassungen 14. `GET /`, `/erfassungen`, `/auswertung` und `/vergleich` liefern HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 22:20 (UTC+2)
+
+Zeitanzeige entfernt, letzte Erfassung zurück an die Frage, Punkte mittig. Geändert: `templates/index.html`, `static/style.css`, `static/selection.js`. Keine Datenänderung. Kein Commit.
+
+Die laufende Zeit wird nicht mehr angezeigt. Die Messung für Etappen und Korrekturen bleibt. „Letzte Erfassung“ steht wieder in kleinerer Schrift direkt neben der Frage. Die drei Punkte sind in der Handyfläche zentriert. `GET /` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 22:34 (UTC+2)
+
+Zwei Sekunden Pause nach Ebene 3. Geändert: `static/selection.js`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Nach dem Speichern ist Ebene 1 für zwei Sekunden nicht anklickbar, damit kein versehentlicher Tipp eine neue Erfassung startet. Danach sind die Buttons wieder frei. Die Zeit wird dabei nicht angezeigt. Geprüft ohne Speichern. `GET /` HTTP 200.
+
+### 2026-10-03 22:40 (UTC+2)
+
+Vierte Ebene mit der Auswahl. Geändert: `templates/index.html`, `static/selection.js`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Nach „Auswahl bestätigen“ zeigt Ebene 4 die gespeicherte Auswahl als Buttons, drei Sekunden lang. Die drei Punkte sind dabei alle gefüllt und nicht klickbar. Danach folgt Ebene 1, weiterhin mit der Zwei-Sekunden-Sperre. Die Zeit wird nicht angezeigt. Geprüft ohne Speichern. `GET /` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 22:42 (UTC+2)
+
+Ebene 2 auf dem Drei-Sekunden-Screen als Button. Geändert: `static/selection.js`. Keine Datenänderung. Kein Commit.
+
+Die Fahrradtypen aus Ebene 2 stehen dort nicht mehr als Überschrift, sondern als Button in derselben Größe wie Herkunft und Details. Geprüft ohne Speichern.
+
+### 2026-10-03 22:46 (UTC+2)
+
+Zusammenfassung in drei Sektoren. Geändert: `static/selection.js`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Ebene 1, Ebene 2 und Ebene 3 haben auf dem Drei-Sekunden-Screen jeweils einen eigenen Bereich. Die Auswahl aus Ebene 2 steht über der aus Ebene 3. Geprüft ohne Speichern.
+
+### 2026-10-03 22:51 (UTC+2)
+
+Sektorbeschriftung entfernt, Rennrad, Triathlon und Zubehör ergänzt. Geändert: `app/database.py`, `templates/index.html`, `static/selection.js`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Auf dem Drei-Sekunden-Screen steht nicht mehr „Ebene“. Die drei Bereiche bleiben untereinander. In Ebene 2 gibt es zusätzlich Rennrad und Triathlon, jeweils mit Specialized, sowie Zubehör mit Luftpumpe, Beleuchtung, Schutzbleche, Schlösser, Griffe, Pflege und Reinigungsprodukte. Geprüft ohne Speichern. `GET /` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 22:54 (UTC+2)
+
+Werkstatt aus der Erfassung genommen, Fragetext in Ebene 2 geändert. Geändert: `app/database.py`, `templates/index.html`, `static/selection.js`. Keine bestehenden Erfassungen gelöscht. Kein Commit.
+
+Werkstatt ist in Ebene 2 nicht mehr wählbar. Die Frage lautet „Für was interessierte sich der Kunde?“. Ältere Werkstatt-Erfassungen bleiben in der Auswertung sichtbar. Geprüft ohne Speichern. `GET /` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 23:02 (UTC+2)
+
+Button „Produkt fehlte“ bei den Marken. Geändert: `app/database.py`, `static/selection.js`. Keine Datenänderung. Kein Commit.
+
+In Ebene 3 steht der Button bei jedem Fahrradtyp hinter den Marken. Bekleidung und Zubehör haben ihn nicht. Geprüft ohne Speichern. `GET /` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 23:07 (UTC+2)
+
+Stammkunde in Ebene 1. Geändert: `app/database.py`, `templates/index.html`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Unter Arbeit und Sonstiges liegt ein Button über beide Spalten, gleiche Höhe wie die anderen. Geprüft ohne Speichern. `GET /` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 23:23 (UTC+2)
+
+Heatmaps im Vergleich verkleinert. Geändert: `static/style.css`, `static/vergleich.js`. Keine Datenänderung. Kein Commit.
+
+Auf der Vergleichsseite sind die Tageszellen halb so groß wie auf den anderen Seiten. Beide Jahressichten stehen nebeneinander ohne seitliches Scrollen. Ein Kalender über zwei Jahre wird zusätzlich so eingepasst, dass er in seiner Spalte bleibt. Erfassungen und Auswertung behalten die bisherige Größe. Geprüft bei 1440 px.
+
+### 2026-10-03 23:38 (UTC+2)
+
+Zeitraum-Buttons in der Auswertung. Geändert: `app/main.py`, `app/database.py`, `templates/auswertung.html`, `static/auswertung.js`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Statt der Auswahlliste gibt es Buttons: Heute, Woche (Montag bis Sonntag der laufenden Woche), Monat, Quartal (die letzten drei Monate, der aktuelle Monat ist der letzte), Halbjahr (die letzten sechs Monate, ebenso), Jahr. Gesamt und Benutzerdefiniert bleiben. Die Zählung endet am heutigen Tag, die Heatmap zeigt die ganze Periode. Geprüft: Quartal 01.08.–31.10.2026, Halbjahr 01.05.–31.10.2026, Woche 28.09.–04.10.2026, Gesamt bleibt 2.975. `GET /auswertung` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 23:51 (UTC+2)
+
+Pfeile zum Blättern, Heatmap immer das ganze Jahr. Geändert: `app/main.py`, `app/database.py`, `templates/auswertung.html`, `static/auswertung.js`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Links und rechts neben dem Zeitraum steht ein Pfeil. Er rückt die gewählte Spanne um eine Einheit: bei Woche um eine Woche, bei Monat um einen Monat, bei Quartal um drei Monate, bei Halbjahr um sechs, bei Jahr um ein Jahr, bei Heute um einen Tag. Die Heatmap zeigt immer das volle Jahr der Auswahl, die gewählte Spanne ist darin markiert. Geprüft: aktuelle Woche 28.09.–04.10.2026 im Jahr 2026, ein Klick links auf 21.09.–27.09.2026, rechts wieder zurück. Eine Woche im Mai 2025 zeigt das Jahr 2025 mit 84 Erfassungen in der markierten Woche. Gesamt bleibt 2.975. `GET /auswertung` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 23:55 (UTC+2)
+
+Von und Bis zeigen die gewählte Spanne. Geändert: `app/main.py`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Nach Heute, Woche, Monat, Quartal, Halbjahr, Jahr und beim Blättern stehen Anfang und Ende in Von und Bis. Die Felder folgen der Auswahl. Unter Benutzerdefiniert bleiben sie eingebbar. Bei Gesamt bleiben sie leer. Geprüft: Woche 28.09.–04.10.2026, ein Klick links 21.09.–27.09.2026, Monat 01.10.–31.10.2026. `GET /auswertung` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-03 23:58 (UTC+2)
+
+Statuszeile unter dem Filter entfernt. Geändert: `templates/auswertung.html`, `app/main.py`. Keine Datenänderung. Kein Commit.
+
+Die Zeile mit Datenmodus, Zeitraum und Datum steht nicht mehr unter Von und Bis. Auswahl, Pfeile und die beiden Datumsfelder bleiben. `GET /auswertung` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-04 00:09 (UTC+2)
+
+Filter für die dritte Ebene. Geändert: `app/database.py`, `app/main.py`, `templates/auswertung.html`. Keine Datenänderung. Kein Commit.
+
+Neben Herkunft und Interesse gibt es das Feld Detail. Es filtert die Marken und die übrigen Werte der dritten Ebene. Steht zusätzlich ein Interesse, zählt nur das Detail zu diesem Interesse. Ältere Werte wie Reklamation bleiben wählbar. Geprüft: Specialized 686 von 2.975, MTB und Specialized 150. Unbekannte Werte werden ignoriert. `GET /auswertung` und `GET /vergleich` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-04 00:14 (UTC+2)
+
+Filterzeile in der Auswertung neu gesetzt. Geändert: `templates/auswertung.html`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Herkunft, Interesse, Detail und Anwenden stehen in einer Zeile. Von und Bis liegen darüber und haben dieselbe Breite wie Herkunft und Interesse. Geprüft bei 1440 px: Von schließt mit Herkunft ab, Bis mit Interesse. Bei 390 px kein seitlicher Überlauf. `GET /auswertung` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-04 00:20 (UTC+2)
+
+Legende der Aktivität immer mit fünf Farben. Geändert: `app/database.py`. Keine Datenänderung. Kein Commit.
+
+Unter Erfassungen standen zwischen Weniger und Mehr nur die Farben, die im Jahr vorkamen, also drei. Die Leiste zeigt jetzt immer alle fünf Stufen, von keiner Erfassung bis sehr hoch. Geprüft auf `/erfassungen`. `GET /erfassungen` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-04 00:26 (UTC+2)
+
+Zustandsfarben in der Auswertung wählbar. Geändert: `app/main.py`, `app/database.py`, `templates/auswertung.html`, `static/auswertung.js`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Rechts neben Bis und über Detail stehen die fünf Farben. Ein Klick zählt nur Tage dieser Stufe, weitere Farben lassen sich dazunehmen. Ohne Auswahl bleibt alles gezählt, gesamt 2.975. Die dunkelste Stufe allein ergibt 1.021. Die übrigen Tage in der Heatmap werden blasser. `GET /auswertung` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-04 00:45 (UTC+2)
+
+Wochentage in der Auswertung, Hinweistext entfernt. Geändert: `app/main.py`, `app/database.py`, `templates/auswertung.html`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Der Satz unter Aktivität ist weg. Darunter im Filter stehen Mo bis So. Mehrere Tage lassen sich zusammen wählen, zum Beispiel Montag, Mittwoch und Freitag. Ohne Auswahl bleibt alles gezählt, gesamt 2.975. Montag allein ergibt 359, die drei Tage zusammen 1.435. Andere Wochentage in der Heatmap werden blasser. `GET /auswertung` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-04 00:48 (UTC+2)
+
+Datenmodus aus der Auswertung genommen. Geändert: `templates/auswertung.html`, `app/main.py`. Keine Datenänderung. Kein Commit.
+
+Demodaten, Echtdaten und Alle sind dort nicht mehr wählbar. In der Entwicklung zählen die Demodaten mit den echten Erfassungen zusammen, gesamt 3.000. Der Vergleich behält den Datenmodus. `GET /auswertung` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-04 01:04 (UTC+2)
+
+Zeitraum abwählbar, Zustand und Wochentag umrandet. Geändert: `app/database.py`, `templates/auswertung.html`, `static/auswertung.js`, `static/style.css`. Keine Datenänderung. Kein Commit.
+
+Ein zweiter Klick auf den aktiven Zeitraum setzt die Auswahl auf Gesamt. Zustand und Wochentag umranden die passenden Tage so wie ein Zeitraum, die übrigen Felder bleiben deckend. Liegt zusätzlich ein Zeitraum, gilt die Umrandung nur in diesem Bereich. Geprüft: Quartal Juni bis August 2025 markiert 92 Tage, zusammen mit der dunkelsten Stufe bleiben 20 umrandet, alle in diesem Quartal. Ein zweiter Klick auf Quartal hebt den Zeitraum auf und behält die Stufe. `GET /auswertung` HTTP 200. Dienst neu gestartet.

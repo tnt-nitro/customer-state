@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vergleich – Customer State</title>
+    <link rel="stylesheet" href="{{ asset('style.css') }}">
+    <script src="{{ asset('vergleich.js') }}" defer></script>
+</head>
+<body>
+    <div class="page compare-page">
+        {% include "header.html" %}
+        <main>
+            <section class="panel lead">
+            <form class="filter" method="get" action="/vergleich" data-vergleich-filter>
+                <fieldset class="mode">
+                    <legend>Datenmodus</legend>
+                    <div class="mode-options">
+                        {% for item in modi %}
+                        <label class="mode-option">
+                            <input type="radio" name="modus" value="{{ item.value }}" {% if modus == item.value %}checked{% endif %}>
+                            <span>{{ item.label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+                <div class="filter-grid">
+                    <label>
+                        Herkunft
+                        <select name="herkunft">
+                            <option value="">Alle</option>
+                            {% for name in herkunft_options %}
+                            <option value="{{ name }}" {% if herkunft == name %}selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>
+                        Interesse
+                        <select name="interesse">
+                            <option value="">Alle</option>
+                            {% for name in interesse_options %}
+                            <option value="{{ name }}" {% if interesse == name %}selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                </div>
+                <p class="filter-state">{{ modus_label }} · {{ art_label }}{% if herkunft %} · Herkunft {{ herkunft }}{% endif %}{% if interesse %} · Interesse {{ interesse }}{% endif %}</p>
+                {% if ignored %}
+                <p class="filter-note">Unbekannte Filterwerte wurden ignoriert.</p>
+                {% endif %}
+                <input type="hidden" name="art" value="{{ art }}">
+                <input type="hidden" name="links" value="{{ links }}">
+                <input type="hidden" name="rechts" value="{{ rechts }}">
+            </form>
+                <div class="art-switch" role="group" aria-label="Art des Zeitraums">
+                    {% for item in arts %}
+                    <form method="get" action="/vergleich">
+                        <input type="hidden" name="modus" value="{{ modus }}">
+                        {% if herkunft %}<input type="hidden" name="herkunft" value="{{ herkunft }}">{% endif %}
+                        {% if interesse %}<input type="hidden" name="interesse" value="{{ interesse }}">{% endif %}
+                        <input type="hidden" name="art" value="{{ item.value }}">
+                        <button type="submit" {% if art == item.value %}aria-current="true"{% endif %}>{{ item.label }}</button>
+                    </form>
+                    {% endfor %}
+                </div>
+
+                <form class="compare-form" method="get" action="/vergleich" data-vergleich-values>
+                    <input type="hidden" name="modus" value="{{ modus }}">
+                    {% if herkunft %}<input type="hidden" name="herkunft" value="{{ herkunft }}">{% endif %}
+                    {% if interesse %}<input type="hidden" name="interesse" value="{{ interesse }}">{% endif %}
+                    <input type="hidden" name="art" value="{{ art }}">
+                    <div class="compare">
+                        <label>
+                            Links
+                            {% if art == "tag" %}
+                            <input type="date" name="links" value="{{ links }}">
+                            {% else %}
+                            <select name="links">
+                                {% for item in choices %}
+                                <option value="{{ item.value }}" {% if links == item.value %}selected{% endif %}>{{ item.label }}</option>
+                                {% endfor %}
+                            </select>
+                            {% endif %}
+                        </label>
+                        <label>
+                            Rechts
+                            {% if art == "tag" %}
+                            <input type="date" name="rechts" value="{{ rechts }}">
+                            {% else %}
+                            <select name="rechts">
+                                {% for item in choices %}
+                                <option value="{{ item.value }}" {% if rechts == item.value %}selected{% endif %}>{{ item.label }}</option>
+                                {% endfor %}
+                            </select>
+                            {% endif %}
+                        </label>
+                        <button type="submit" class="apply">Vergleichen</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="panel heat-slot">
+                <div class="heat-head">
+                    <h2>Aktivität</h2>
+                    <p class="panel-note">Links {{ report.left.title }} · Rechts {{ report.right.title }}. Ein Klick setzt den Zeitraum dieser Seite.</p>
+                </div>
+                <div class="compare">
+                    {% for side in (report.left, report.right) %}
+                    <div>
+                        {% if side.calendar.weeks %}
+                        <div class="cal-scroll">
+                            <div class="cal">
+                                <div class="cal-months" aria-hidden="true">
+                                    {% for week in side.calendar.weeks %}
+                                    <span>{{ week.label }}</span>
+                                    {% endfor %}
+                                </div>
+                                <div class="cal-body">
+                                    <div class="cal-names" aria-hidden="true">
+                                        <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+                                    </div>
+                                    <div class="cal-grid">
+                                        {% for week in side.calendar.weeks %}
+                                        {% for day in week.days %}
+                                        {% if day.in_range and day.href %}
+                                        <a class="heat heat-{{ day.level }}{% if day.selected %} is-selected{% endif %}" href="{{ day.href }}" aria-label="{{ day.weekday }}, {{ day.label }}, {{ day.count_label }} Erfassungen"{% if day.selected %} aria-current="true"{% endif %}>
+                                            <span class="heat-tip">{{ day.weekday }}, {{ day.label }}<br>{{ day.count_label }} Erfassungen</span>
+                                        </a>
+                                        {% elif day.in_range %}
+                                        <span class="heat heat-{{ day.level }}{% if day.selected %} is-selected{% endif %}" aria-label="{{ day.weekday }}, {{ day.label }}, {{ day.count_label }} Erfassungen">
+                                            <span class="heat-tip">{{ day.weekday }}, {{ day.label }}<br>{{ day.count_label }} Erfassungen</span>
+                                        </span>
+                                        {% else %}
+                                        <span class="heat heat-out"></span>
+                                        {% endif %}
+                                        {% endfor %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="cal-legend">
+                            <span>Weniger</span>
+                            {% for item in side.calendar.legend %}
+                            <span class="heat heat-{{ item.level }}" title="{{ item.label }}"></span>
+                            {% endfor %}
+                            <span>Mehr</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="compare compare-result">
+                    {% for side in (report.left, report.right) %}
+                    <article>
+                        <h3>{{ side.title }}</h3>
+                        <p class="panel-note">{{ side.detail }}</p>
+                        <p><strong>{{ side.total_label }}</strong> Erfassungen</p>
+                        <p><strong>{{ side.average_label }}</strong> Ø je aktivem Tag <span>an {{ side.active_days }} Tagen</span></p>
+                    </article>
+                    {% endfor %}
+                </div>
+                <p class="panel-note">Rechts gegenüber links: <strong>{{ report.delta_label }}</strong> Erfassungen.</p>
+                <h3>Herkunft</h3>
+                <div class="compare-table">
+                    <div class="compare-row compare-head"><span></span><span>Links</span><span>Rechts</span><span>Differenz</span></div>
+                    {% for row in report.herkunft %}
+                    <div class="compare-row"><span>{{ row.name }}</span><span>{{ row.left_label }} · {{ row.left_percent }}</span><span>{{ row.right_label }} · {{ row.right_percent }}</span><span>{{ row.delta_label }}</span></div>
+                    {% endfor %}
+                </div>
+                <h3>Interesse</h3>
+                <div class="compare-table">
+                    <div class="compare-row compare-head"><span></span><span>Links</span><span>Rechts</span><span>Differenz</span></div>
+                    {% for row in report.interesse %}
+                    <div class="compare-row"><span>{{ row.name }}</span><span>{{ row.left_label }} · {{ row.left_percent }}</span><span>{{ row.right_label }} · {{ row.right_percent }}</span><span>{{ row.delta_label }}</span></div>
+                    {% endfor %}
+                </div>
+                <h3>Dauer der Etappen</h3>
+                <div class="compare-table">
+                    <div class="compare-row compare-head"><span></span><span>Links Ø</span><span>Rechts Ø</span><span></span></div>
+                    {% for row in report.duration %}
+                    <div class="compare-row"><span>{{ row.label }}</span><span>{{ row.left }}</span><span>{{ row.right }}</span><span></span></div>
+                    {% endfor %}
+                </div>
+            </section>
+        </main>
+    </div>
+</body>
+</html>

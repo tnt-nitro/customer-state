@@ -4,47 +4,64 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Customer State</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/selection.js" defer></script>
+    <link rel="stylesheet" href="{{ asset('style.css') }}">
+    <script src="{{ asset('selection.js') }}" defer></script>
 </head>
 <body>
-    <div class="page">
+    <div class="page capture">
         {% include "header.html" %}
         <main>
-            <p class="notice" data-save-notice hidden role="status"></p>
-            <section class="step" data-level="1">
-                <h2 id="awareness-heading">Wie ist der Kunde auf uns aufmerksam geworden?</h2>
-                <div class="choices" data-choice-group role="group" aria-labelledby="awareness-heading">
-                    <button type="button" class="choice" aria-pressed="false">Empfehlung</button>
-                    <button type="button" class="choice" aria-pressed="false">KI</button>
-                    <button type="button" class="choice" aria-pressed="false">Google</button>
-                    <button type="button" class="choice" aria-pressed="false">Leasingportal</button>
-                    <button type="button" class="choice" aria-pressed="false">Arbeit</button>
-                    <button type="button" class="choice" aria-pressed="false">Sonstiges</button>
+            <div class="phone">
+                <p class="phone-notice" data-save-notice role="status"></p>
+                <div class="phone-head">
+                    <h2 id="step-heading"><span data-step-heading>Wie ist der Kunde auf uns aufmerksam geworden?</span><span class="last-capture{% if last_capture_saved %} is-saved{% endif %}" data-last-capture>{% if last_capture %}Letzte Erfassung: {{ last_capture }}{% endif %}</span><span class="head-sub" data-head-sub></span></h2>
+                    <div class="dots" role="group" aria-label="Ebene">
+                        <button type="button" class="dot is-on" data-dot="1" aria-label="Ebene 1" aria-current="true"></button>
+                        <button type="button" class="dot" data-dot="2" aria-label="Ebene 2" disabled></button>
+                        <button type="button" class="dot" data-dot="3" aria-label="Ebene 3" disabled></button>
+                    </div>
                 </div>
-            </section>
-            <section class="step" data-level="2" hidden>
-                <h2 id="bike-heading">Für welchen Fahrradtyp interessiert sich der Kunde?</h2>
-                <div class="choices" data-choice-group role="group" aria-labelledby="bike-heading">
-                    <button type="button" class="choice" aria-pressed="false">MTB</button>
-                    <button type="button" class="choice" aria-pressed="false">E-MTB</button>
-                    <button type="button" class="choice" aria-pressed="false">Gravel</button>
-                    <button type="button" class="choice" aria-pressed="false">E-Gravel</button>
-                    <button type="button" class="choice" aria-pressed="false">Kinderrad</button>
-                    <button type="button" class="choice" aria-pressed="false">Lastenrad</button>
-                    <button type="button" class="choice" aria-pressed="false">Trekking</button>
-                    <button type="button" class="choice" aria-pressed="false">Trekking vollgefedert</button>
-                    <button type="button" class="choice" aria-pressed="false">Bekleidung</button>
-                    <button type="button" class="choice" aria-pressed="false">Werkstatt</button>
+                <div class="phone-body">
+                    <section class="step" data-level="1">
+                        <div class="choices" data-choice-group role="group" aria-labelledby="step-heading">
+                            <button type="button" class="choice" aria-pressed="false">Empfehlung</button>
+                            <button type="button" class="choice" aria-pressed="false">KI</button>
+                            <button type="button" class="choice" aria-pressed="false">Google</button>
+                            <button type="button" class="choice" aria-pressed="false">Leasingportal</button>
+                            <button type="button" class="choice" aria-pressed="false">Arbeit</button>
+                            <button type="button" class="choice" aria-pressed="false">Sonstiges</button>
+                            <button type="button" class="choice choice-wide" aria-pressed="false">Stammkunde</button>
+                        </div>
+                    </section>
+                    <section class="step" data-level="2" hidden>
+                        <div class="choices" data-choice-group role="group" aria-labelledby="step-heading">
+                            <button type="button" class="choice" aria-pressed="false">MTB</button>
+                            <button type="button" class="choice" aria-pressed="false">E-MTB</button>
+                            <button type="button" class="choice" aria-pressed="false">Gravel</button>
+                            <button type="button" class="choice" aria-pressed="false">E-Gravel</button>
+                            <button type="button" class="choice" aria-pressed="false">Rennrad</button>
+                            <button type="button" class="choice" aria-pressed="false">Triathlon</button>
+                            <button type="button" class="choice" aria-pressed="false">Kinderrad</button>
+                            <button type="button" class="choice" aria-pressed="false">Lastenrad</button>
+                            <button type="button" class="choice" aria-pressed="false">Trekking</button>
+                            <button type="button" class="choice" aria-pressed="false">Trekking vollgefedert</button>
+                            <button type="button" class="choice" aria-pressed="false">Bekleidung</button>
+                            <button type="button" class="choice" aria-pressed="false">Zubehör</button>
+                        </div>
+                    </section>
+                    <section class="step" data-level="3" hidden>
+                        <div data-level3-groups></div>
+                    </section>
+                    <section class="step" data-level="4" hidden>
+                        <div data-level4-groups></div>
+                    </section>
                 </div>
-            </section>
-            <section class="step" data-level="3" hidden>
-                <h2 id="interest-heading">Wofür interessiert sich der Kunde?</h2>
-                <div class="choices" data-choice-group role="group" aria-labelledby="interest-heading"></div>
-                <div class="save-bar">
-                    <button type="button" class="save" data-save-entry disabled>Erfassung speichern</button>
+                <div class="phone-action">
+                    <button type="button" class="save" data-level-next="1" disabled>Weiter</button>
+                    <button type="button" class="save" data-level-next="2" hidden disabled>Weiter</button>
+                    <button type="button" class="save" data-save-entry hidden disabled>Auswahl bestätigen</button>
                 </div>
-            </section>
+            </div>
         </main>
     </div>
 </body>

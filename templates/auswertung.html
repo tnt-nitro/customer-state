@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auswertung – Customer State</title>
+    <link rel="stylesheet" href="{{ asset('style.css') }}">
+    <script src="{{ asset('auswertung.js') }}" defer></script>
+</head>
+<body>
+    <div class="page dashboard">
+        {% include "header.html" %}
+        <main>
+            <form class="panel filter lead" method="get" action="/auswertung" data-auswertung-filter>
+                <fieldset class="mode">
+                    <legend>Zeitraum</legend>
+                    <input type="hidden" name="stand" value="{{ stand_value }}" data-stand>
+                    <div class="zeitraum-row">
+                        {% if prev_url %}
+                        <a class="page-arrow" href="{{ prev_url }}" aria-label="{{ prev_label }}">←</a>
+                        {% else %}
+                        <span class="page-arrow is-disabled" aria-hidden="true">←</span>
+                        {% endif %}
+                        <div class="mode-options">
+                            {% for item in zeitraeume %}
+                            <label class="mode-option">
+                                <input type="radio" name="zeitraum" value="{{ item.value }}" {% if zeitraum == item.value %}checked{% endif %}>
+                                <span>{{ item.label }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% if next_url %}
+                        <a class="page-arrow" href="{{ next_url }}" aria-label="{{ next_label }}">→</a>
+                        {% else %}
+                        <span class="page-arrow is-disabled" aria-hidden="true">→</span>
+                        {% endif %}
+                    </div>
+                </fieldset>
+                <div class="filter-grid">
+                    <div class="filter-dates">
+                        <label>
+                            Von
+                            <input type="date" name="von" value="{{ von_value }}" data-custom-date>
+                        </label>
+                        <label>
+                            Bis
+                            <input type="date" name="bis" value="{{ bis_value }}" data-custom-date>
+                        </label>
+                    </div>
+                    <div class="filter-states">
+                        <span>Zustand</span>
+                        <div class="state-options" role="group" aria-label="Zustand">
+                            {% for item in state_levels %}
+                            <label class="state-option">
+                                <input type="checkbox" name="stufe" value="{{ item.level }}" {% if item.level in stufen %}checked{% endif %} aria-label="{{ item.label }}">
+                                <span class="heat heat-{{ item.level }}"></span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <label class="filter-herkunft">
+                        Herkunft
+                        <select name="herkunft">
+                            <option value="">Alle</option>
+                            {% for name in result.herkunft_options %}
+                            <option value="{{ name }}" {% if result.applied_herkunft == name %}selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="filter-interesse">
+                        Interesse
+                        <select name="interesse">
+                            <option value="">Alle</option>
+                            {% for name in result.interesse_options %}
+                            <option value="{{ name }}" {% if result.applied_interesse == name %}selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="filter-detail">
+                        Detail
+                        <select name="detail">
+                            <option value="">Alle</option>
+                            {% for name in result.detail_options %}
+                            <option value="{{ name }}" {% if result.applied_detail == name %}selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <button type="submit" class="apply">Anwenden</button>
+                </div>
+                <div class="weekday-filter">
+                    <span>Wochentag</span>
+                    <div class="weekday-options" role="group" aria-label="Wochentag">
+                        {% for item in weekday_choices %}
+                        <label class="weekday-option">
+                            <input type="checkbox" name="wochentag" value="{{ item.value }}" {% if item.value in wochentage %}checked{% endif %} aria-label="{{ item.label }}">
+                            <span>{{ item.short }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% if ignored %}
+                <p class="filter-note">Unbekannte Filterwerte wurden ignoriert.</p>
+                {% endif %}
+            </form>
+
+            <section class="panel heat-slot">
+                <div class="heat-head">
+                    <h2>Aktivität</h2>
+                </div>
+                {% if result.calendar.weeks %}
+                <div class="cal-scroll">
+                    <div class="cal">
+                        <div class="cal-months" aria-hidden="true">
+                            {% for week in result.calendar.weeks %}
+                            <span>{{ week.label }}</span>
+                            {% endfor %}
+                        </div>
+                        <div class="cal-body">
+                            <div class="cal-names" aria-hidden="true">
+                                <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+                            </div>
+                            <div class="cal-grid">
+                                {% for week in result.calendar.weeks %}
+                                {% for day in week.days %}
+                                {% if day.in_range %}
+                                <button type="button" class="heat heat-{{ day.level }}{% if day.selected %} is-selected{% endif %}" data-date="{{ day.date }}" data-count="{{ day.count }}" aria-label="{{ day.weekday }}, {{ day.label }}, {{ day.count_label }} Erfassungen{% if day.selected %}, ausgewählt{% endif %}">
+                                    <span class="heat-tip">{{ day.weekday }}, {{ day.label }}<br>{{ day.count_label }} Erfassungen</span>
+                                </button>
+                                {% else %}
+                                <span class="heat heat-out"></span>
+                                {% endif %}
+                                {% endfor %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="cal-legend">
+                    <span>Weniger</span>
+                    {% for item in result.calendar.legend %}
+                    <span class="heat heat-{{ item.level }}" title="{{ item.label }}"></span>
+                    {% endfor %}
+                    <span>Mehr</span>
+                </div>
+                {% else %}
+                <p class="panel-note">Für den gewählten Filter gibt es keinen Kalender.</p>
+                {% endif %}
+            </section>
+
+            <section class="kpi" aria-label="Kennzahlen">
+                <p><strong>{{ result.total_label }}</strong> Erfassungen</p>
+                <p><strong>{{ result.average_label }}</strong> Ø je aktivem Tag{% if result.active_days %} <span>an {{ result.active_days }} Tagen</span>{% endif %}</p>
+                <p><strong>{{ result.strongest_day }}</strong>{% if result.strongest_day_count %}<span>{{ result.strongest_day_count }}</span>{% endif %} Stärkster Tag</p>
+                <p><strong>{{ result.strongest_month }}</strong>{% if result.strongest_month_count %}<span>{{ result.strongest_month_count }}</span>{% endif %} Stärkster Monat</p>
+                <p><strong>{{ result.top_herkunft }}</strong> Häufigste Herkunft</p>
+                <p><strong>{{ result.top_interesse }}</strong> Häufigstes Interesse</p>
+            </section>
+
+            {% if result.total == 0 %}
+            <p class="empty">Keine Erfassungen im gewählten Zeitraum.</p>
+            {% endif %}
+
+            <section class="panel">
+                <h2>Saisonverlauf</h2>
+                {% if result.timeline.kind == "leer" %}
+                <p class="panel-note">Für den gewählten Filter gibt es keinen Zeitverlauf.</p>
+                {% else %}
+                {% if result.timeline.kind == "tage" %}
+                <p class="panel-note">Absolute Anzahl je Tag im gewählten Zeitraum.</p>
+                {% else %}
+                <p class="panel-note">Absolute Anzahl je Monat. So werden Winter, Anstieg, Hauptsaison, Herbst und Rückgang sichtbar.</p>
+                {% endif %}
+                {% for group in result.timeline.groups %}
+                {% if result.timeline.groups|length > 1 or result.timeline.kind == "monate" %}
+                <h3>{{ group.title }}</h3>
+                {% endif %}
+                <div class="bars">
+                    {% for bar in group.bars %}
+                    <div class="bar-row">
+                        <span class="bar-label">{{ bar.label }}</span>
+                        <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: {{ bar.width }}%"></span></span>
+                        <span class="bar-value">{{ bar.count_label }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+                {% endif %}
+            </section>
+
+            <div class="split">
+                <section class="panel">
+                    <h2>Wochentage</h2>
+                    <p class="panel-note">Die Balken sind die absolute Anzahl. „Je Öffnungsstunde“ teilt diese Anzahl durch die Stunden des Wochentags und durch die Kalendertage dieses Wochentags im Zeitraum: Montag bis Freitag 9 Stunden, Samstag 5 Stunden. Sonntag ist geschlossen. Feiertage werden dabei nicht gesondert herausgerechnet.</p>
+                    <div class="bars">
+                        {% for day in result.weekdays %}
+                        <div class="bar-row">
+                            <span class="bar-label">{{ day.name }}</span>
+                            <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: {{ day.width }}%"></span></span>
+                            <span class="bar-value">{{ day.count_label }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <h3>Je Öffnungsstunde</h3>
+                    <div class="bars">
+                        {% for day in result.weekdays %}
+                        {% if not day.closed %}
+                        <div class="bar-row">
+                            <span class="bar-label">{{ day.name }}</span>
+                            <span class="bar-track" aria-hidden="true"><span class="bar-fill bar-fill-quiet" style="width: {{ day.rate_width }}%"></span></span>
+                            <span class="bar-value">{{ day.rate_label }}</span>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    <p class="panel-note">Sonntag: geschlossen, keine Öffnungsstunde.</p>
+                </section>
+
+                <section class="panel">
+                    <h2>Tageszeit</h2>
+                    <p class="panel-note">Nur die Öffnungsstunden. Jede Ansicht hat eine eigene Skala.</p>
+                    <h3>Montag bis Freitag, 10:00–19:00</h3>
+                    <div class="bars">
+                        {% for row in result.weekday_hours %}
+                        <div class="bar-row">
+                            <span class="bar-label">{{ row.label }}</span>
+                            <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: {{ row.width }}%"></span></span>
+                            <span class="bar-value">{{ row.count_label }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <h3>Samstag, 09:00–14:00</h3>
+                    <div class="bars">
+                        {% for row in result.saturday_hours %}
+                        <div class="bar-row">
+                            <span class="bar-label">{{ row.label }}</span>
+                            <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: {{ row.width }}%"></span></span>
+                            <span class="bar-value">{{ row.count_label }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if result.outside %}
+                    <p class="panel-note">Außerhalb dieser Öffnungsstunden liegen {{ result.outside }} Erfassungen.</p>
+                    {% endif %}
+                </section>
+            </div>
+
+            <div class="split">
+                <section class="panel">
+                    <h2>Herkunft</h2>
+                    <p class="panel-note">Eine Erfassung kann mehrere Herkünfte enthalten. Die Prozentzahl ist der Anteil der Erfassungen mit dieser Herkunft und ergibt mit den anderen Herkünften nicht 100 %.</p>
+                    <div class="bars">
+                        {% for row in result.herkunft %}
+                        <div class="bar-row bar-row-wide">
+                            <span class="bar-label">{{ row.name }}</span>
+                            <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: {{ row.width }}%"></span></span>
+                            <span class="bar-value">{{ row.count_label }} · {{ row.percent }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </section>
+                <section class="panel">
+                    <h2>Interessen</h2>
+                    <p class="panel-note">Eine Erfassung kann mehrere Interessen enthalten. Die Prozentzahl ist der Anteil der Erfassungen mit diesem Interesse und ergibt mit den anderen Interessen nicht 100 %.</p>
+                    <div class="bars">
+                        {% for row in result.interesse %}
+                        <div class="bar-row bar-row-wide">
+                            <span class="bar-label">{{ row.name }}</span>
+                            <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: {{ row.width }}%"></span></span>
+                            <span class="bar-value">{{ row.count_label }} · {{ row.percent }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </section>
+            </div>
+
+            <div class="split">
+                <section class="panel">
+                    <h2>Details</h2>
+                    <p class="panel-note">Eine Erfassung kann mehrere Details enthalten. Die Prozentzahl ist der Anteil der Erfassungen mit diesem Detail und ergibt mit den anderen Details nicht 100 %.</p>
+                    {% if result.details %}
+                    <div class="bars">
+                        {% for row in result.details %}
+                        <div class="bar-row bar-row-wide">
+                            <span class="bar-label">{{ row.name }}</span>
+                            <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: {{ row.width }}%"></span></span>
+                            <span class="bar-value">{{ row.count_label }} · {{ row.percent }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="panel-note">Keine Details im gewählten Zeitraum.</p>
+                    {% endif %}
+                </section>
+                <section class="panel">
+                    <h2>Häufige Kombinationen</h2>
+                    <p class="panel-note">Herkunft, Interesse und ein Detail, nur nach tatsächlicher Häufigkeit.</p>
+                    {% if result.combinations %}
+                    <div class="bars">
+                        {% for row in result.combinations %}
+                        <div class="bar-row bar-row-combo">
+                            <span class="bar-label">{{ row.label }}</span>
+                            <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: {{ row.width }}%"></span></span>
+                            <span class="bar-value">{{ row.count_label }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="panel-note">Keine Kombinationen im gewählten Zeitraum.</p>
+                    {% endif %}
+                </section>
+            </div>
+
+            <section class="panel">
+                <h2>Erfassungsdauer</h2>
+                {% if result.duration.available %}
+                <p class="panel-note">Gezählt werden abgeschlossene Erfassungen mit Zeitmessung im gewählten Zeitraum, Herkunft und Interesse. Ebene 1 läuft vom ersten Klick bis „Weiter“, danach bis zum ersten Klick in Ebene 2, dann bis „Weiter“ in Ebene 2, danach bis zum ersten Klick in Ebene 3 und von dort bis zum Speichern. „Start bis Ende“ ist der erste Klick in Ebene 1 bis zum Speichern.</p>
+                <p class="panel-note"><strong>{{ result.duration.count_label }}</strong> Erfassungen mit Gesamtdauer.</p>
+                <div class="stage-times">
+                    {% for stage in result.duration.stages %}
+                    <div{% if stage.total %} class="is-total"{% endif %}>
+                        <span>{{ stage.label }}</span>
+                        {% if stage.count %}
+                        <span>Ø {{ stage.average }} · Median {{ stage.median }} · {{ stage.count_label }}</span>
+                        {% else %}
+                        <span>Noch keine Erfassung mit dieser Etappe.</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                <h3>Verteilung der Gesamtdauer</h3>
+                <div class="bars">
+                    {% for row in result.duration.buckets %}
+                    <div class="bar-row bar-row-wide">
+                        <span class="bar-label">{{ row.label }}</span>
+                        <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: {{ row.width }}%"></span></span>
+                        <span class="bar-value">{{ row.count_label }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="panel-note">Noch keine Erfassungen mit Zeitmessung vorhanden.</p>
+                {% endif %}
+            </section>
+
+            <section class="panel">
+                <h2>Korrekturen</h2>
+                <p class="panel-note">Ein Rücksprung in eine frühere Ebene wird mit Ausgangsebene, Ziel, vergangener Zeit und dem damaligen Stand gespeichert. Die Stunden zeigen, zu welcher Tageszeit korrigiert wird.</p>
+                {% if corrections.total %}
+                <p class="panel-note"><strong>{{ corrections.total_label }}</strong> Korrekturen im gewählten Zeitraum.</p>
+                <h3>Tageszeit</h3>
+                <div class="bars">
+                    {% for row in corrections.hours %}
+                    <div class="bar-row">
+                        <span class="bar-label">{{ row.label }}</span>
+                        <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: {{ row.width }}%"></span></span>
+                        <span class="bar-value">{{ row.count_label }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <h3>Rücksprung</h3>
+                <div class="bars">
+                    {% for row in corrections.steps %}
+                    <div class="bar-row bar-row-wide">
+                        <span class="bar-label">{{ row.label }}</span>
+                        <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: {{ row.width }}%"></span></span>
+                        <span class="bar-value">{{ row.count_label }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if corrections.statuses %}
+                <h3>Stand bei der Korrektur</h3>
+                <div class="bars">
+                    {% for row in corrections.statuses %}
+                    <div class="bar-row bar-row-wide">
+                        <span class="bar-label">{{ row.label }}</span>
+                        <span class="bar-track" aria-hidden="true"><span class="bar-fill" style="width: {{ row.width }}%"></span></span>
+                        <span class="bar-value">{{ row.count_label }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="panel-note">Noch keine Korrektur im gewählten Zeitraum.</p>
+                {% endif %}
+            </section>
+        </main>
+    </div>
+</body>
+</html>

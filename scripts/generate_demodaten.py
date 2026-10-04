@@ -541,6 +541,40 @@ def opening_hours(weekday):
     return 10, 19
 
 
+def choose_capture(rng, month, weather, school):
+    names = [weighted(rng, interest_weights(month, weather, school))]
+    if rng.random() < 0.18:
+        if names[0] != "Werkstatt" and rng.random() < 0.6:
+            names.append("Werkstatt")
+        else:
+            extra = interest_weights(month, weather, school)
+            extra.pop(names[0], None)
+            if extra:
+                names.append(weighted(rng, extra))
+    names = [name for name in INTERESTS if name in names]
+    origins = [weighted(rng, herkunft_weights(names[0], month))]
+    if rng.random() < 0.22:
+        extra = herkunft_weights(names[0], month)
+        extra.pop(origins[0], None)
+        if extra:
+            origins.append(weighted(rng, extra))
+    origins = [name for name in LEVEL1 if name in origins]
+    if "Leasingportal" in origins:
+        channel = "Leasingportal"
+    elif "Arbeit" in origins:
+        channel = "Arbeit"
+    else:
+        channel = origins[0]
+    blocks = [
+        {
+            "value": name,
+            "details": choose_details(rng, name, channel, weather, month),
+        }
+        for name in names
+    ]
+    return origins, blocks
+
+
 def validate_record(record):
     moment = record["moment"]
     weekday = moment.weekday()
@@ -550,15 +584,18 @@ def validate_record(record):
     start, end = hours
     if not (start <= moment.hour < end):
         raise RuntimeError(f"Erfassung außerhalb der Öffnungszeit: {moment}")
-    if record["level1"] not in LEVEL1:
+    if not record["level1"] or any(item not in LEVEL1 for item in record["level1"]):
         raise RuntimeError(record["level1"])
-    if record["level2"] not in INTERESTS:
-        raise RuntimeError(record["level2"])
-    allowed = INTERESTS[record["level2"]]
-    if not record["details"] or any(item not in allowed for item in record["details"]):
-        raise RuntimeError(record["details"])
-    if record["details"] != [item for item in allowed if item in record["details"]]:
-        raise RuntimeError("Detailreihenfolge weicht von der Erfassung ab")
+    seen = set()
+    for block in record["level2"]:
+        if block["value"] not in INTERESTS or block["value"] in seen:
+            raise RuntimeError(block["value"])
+        seen.add(block["value"])
+        allowed = INTERESTS[block["value"]]
+        if not block["details"] or any(item not in allowed for item in block["details"]):
+            raise RuntimeError(block["details"])
+        if block["details"] != [item for item in allowed if item in block["details"]]:
+            raise RuntimeError("Detailreihenfolge weicht von der Erfassung ab")
     expected = moment.astimezone(BERLIN).isoformat(sep=" ", timespec="seconds")
     if record["created_at"] != expected:
         raise RuntimeError(record["created_at"])
@@ -605,15 +642,12 @@ def build_year(rng):
                 second,
                 tzinfo=BERLIN,
             )
-            level2 = weighted(rng, interest_weights(day.month, weather, school))
-            level1 = weighted(rng, herkunft_weights(level2, day.month))
-            details = choose_details(rng, level2, level1, weather, day.month)
+            level1, level2 = choose_capture(rng, day.month, weather, school)
             record = {
                 "moment": moment,
                 "created_at": moment.isoformat(sep=" ", timespec="seconds"),
                 "level1": level1,
                 "level2": level2,
-                "details": details,
                 "weather": weather,
                 "school": school or "",
             }
@@ -637,18 +671,40 @@ def snapshot(connection):
     found = {}
     for row_id in PRESERVE_IDS:
         head = connection.execute(
-            "SELECT id, created_at, level1, level2 FROM erfassungen WHERE id = ?",
+            """
+            SELECT id, created_at, is_demo, started_at, level1_completed_at,
+                   level2_completed_at, completed_at
+            FROM erfassungen WHERE id = ?
+            """,
             (row_id,),
         ).fetchone()
-        details = connection.execute(
+        herkunft = connection.execute(
             """
-            SELECT id, wert FROM erfassung_level3
+            SELECT wert FROM erfassung_herkunft
             WHERE erfassung_id = ?
-            ORDER BY id
+            ORDER BY position, id
             """,
             (row_id,),
         ).fetchall()
-        found[row_id] = (head, details)
+        blocks = []
+        for interesse_id, wert in connection.execute(
+            """
+            SELECT id, wert FROM erfassung_interesse
+            WHERE erfassung_id = ?
+            ORDER BY position, id
+            """,
+            (row_id,),
+        ):
+            details = connection.execute(
+                """
+                SELECT wert FROM erfassung_detail
+                WHERE interesse_id = ?
+                ORDER BY position, id
+                """,
+                (interesse_id,),
+            ).fetchall()
+            blocks.append((wert, tuple(details)))
+        found[row_id] = (head, tuple(herkunft), tuple(blocks))
     return found
 
 
@@ -672,21 +728,39 @@ def insert_records(records):
         for record in records:
             cursor = connection.execute(
                 """
-                INSERT INTO erfassungen (created_at, level1, level2)
-                VALUES (?, ?, ?)
+                INSERT INTO erfassungen (created_at, is_demo)
+                VALUES (?, 1)
                 """,
-                (record["created_at"], record["level1"], record["level2"]),
+                (record["created_at"],),
             )
             new_id = cursor.lastrowid
             if new_id in PRESERVE_IDS:
                 raise RuntimeError(f"Neue Zeile würde ID {new_id} belegen")
             connection.executemany(
                 """
-                INSERT INTO erfassung_level3 (erfassung_id, wert)
-                VALUES (?, ?)
+                INSERT INTO erfassung_herkunft (erfassung_id, position, wert)
+                VALUES (?, ?, ?)
                 """,
-                [(new_id, wert) for wert in record["details"]],
+                [(new_id, index, wert) for index, wert in enumerate(record["level1"])],
             )
+            for index, block in enumerate(record["level2"]):
+                interesse = connection.execute(
+                    """
+                    INSERT INTO erfassung_interesse (erfassung_id, position, wert)
+                    VALUES (?, ?, ?)
+                    """,
+                    (new_id, index, block["value"]),
+                )
+                connection.executemany(
+                    """
+                    INSERT INTO erfassung_detail (interesse_id, position, wert)
+                    VALUES (?, ?, ?)
+                    """,
+                    [
+                        (interesse.lastrowid, detail_index, wert)
+                        for detail_index, wert in enumerate(block["details"])
+                    ],
+                )
         after = snapshot(connection)
         if after != before:
             raise RuntimeError("ID 5 oder ID 8 wurde verändert")
@@ -730,8 +804,12 @@ def write_report(records, days, path):
     closed_holiday = sum(1 for day in days if day.get("reason") == "feiertag")
     by_weekday = Counter(record["moment"].weekday() for record in records)
     by_month = Counter(record["moment"].month for record in records)
-    by_level1 = Counter(record["level1"] for record in records)
-    by_level2 = Counter(record["level2"] for record in records)
+    by_level1 = Counter()
+    by_level2 = Counter()
+    for record in records:
+        by_level1.update(record["level1"])
+        for block in record["level2"]:
+            by_level2[block["value"]] += 1
     by_weather = Counter(record["weather"] for record in records)
     hours_weekday = Counter(
         record["moment"].hour for record in records if record["moment"].weekday() != 5
@@ -751,7 +829,8 @@ def write_report(records, days, path):
 
     detail_counts = defaultdict(Counter)
     for record in records:
-        detail_counts[record["level2"]].update(record["details"])
+        for block in record["level2"]:
+            detail_counts[block["value"]].update(block["details"])
 
     school_contacts = Counter(record["school"] or "keine" for record in records)
     daily = [day["contacts"] for day in open_days]

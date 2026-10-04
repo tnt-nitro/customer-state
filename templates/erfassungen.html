@@ -4,16 +4,70 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Erfassungen – Customer State</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="{{ asset('style.css') }}">
 </head>
 <body>
-    <div class="page">
+    <div class="page records-page">
         {% include "header.html" %}
         <main>
-            <section class="summary" aria-label="Zusammenfassung">
-                <p><strong>{{ total }}</strong> Erfassungen</p>
-                <p><strong>{{ today }}</strong> heute</p>
+            <section class="panel lead">
+                <div class="heat-head">
+                    <h2>{{ weekday }}, {{ selected_label }}</h2>
+                    <p class="panel-note">{{ total }} Erfassungen an diesem Tag.</p>
+                </div>
+                <nav class="year-switch" aria-label="Jahr">
+                    {% for year in years %}
+                    <a href="/erfassungen?jahr={{ year }}" {% if year|string == selected_iso[:4] %}aria-current="page"{% endif %}>{{ year }}</a>
+                    {% endfor %}
+                    {% if not is_today %}
+                    <a href="/erfassungen">Heute</a>
+                    {% endif %}
+                </nav>
             </section>
+
+            <section class="panel heat-slot">
+                <div class="heat-head">
+                    <h2>Aktivität</h2>
+                    <p class="panel-note">Ein Feld ist ein Kalendertag. Ein Klick lädt die Erfassungen dieses Tages. Ohne Klick ist der aktuelle Tag geladen.</p>
+                </div>
+                {% if calendar.weeks %}
+                <div class="cal-scroll">
+                    <div class="cal">
+                        <div class="cal-months" aria-hidden="true">
+                            {% for week in calendar.weeks %}
+                            <span>{{ week.label }}</span>
+                            {% endfor %}
+                        </div>
+                        <div class="cal-body">
+                            <div class="cal-names" aria-hidden="true">
+                                <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+                            </div>
+                            <div class="cal-grid">
+                                {% for week in calendar.weeks %}
+                                {% for day in week.days %}
+                                {% if day.in_range %}
+                                <a class="heat heat-{{ day.level }}{% if day.date == selected_iso %} is-selected{% endif %}" href="/erfassungen?tag={{ day.date }}" data-date="{{ day.date }}" data-count="{{ day.count }}" aria-label="{{ day.weekday }}, {{ day.label }}, {{ day.count_label }} Erfassungen">
+                                    <span class="heat-tip">{{ day.weekday }}, {{ day.label }}<br>{{ day.count_label }} Erfassungen</span>
+                                </a>
+                                {% else %}
+                                <span class="heat heat-out"></span>
+                                {% endif %}
+                                {% endfor %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="cal-legend">
+                    <span>Weniger</span>
+                    {% for item in calendar.legend %}
+                    <span class="heat heat-{{ item.level }}" title="{{ item.label }}"></span>
+                    {% endfor %}
+                    <span>Mehr</span>
+                </div>
+                {% endif %}
+            </section>
+
             {% if entries %}
             <div class="records">
                 {% for entry in entries %}
@@ -24,35 +78,90 @@
                             <time datetime="{{ entry.created_at }}">{{ entry.date_label }} {{ entry.time_label }}</time>
                         </p>
                     </div>
-                    <dl class="record-fields">
-                        <div>
-                            <dt>Herkunft</dt>
-                            <dd>{{ entry.herkunft }}</dd>
-                        </div>
-                        <div>
-                            <dt>Interesse</dt>
-                            <dd>{{ entry.interesse }}</dd>
-                        </div>
-                        <div>
-                            <dt>Details</dt>
-                            <dd>
-                                {% if entry.details %}
-                                <ul class="details">
-                                    {% for detail in entry.details %}
-                                    <li>{{ detail }}</li>
-                                    {% endfor %}
-                                </ul>
-                                {% else %}
-                                —
+                    <section class="level-pair">
+                        <header class="level-head">
+                            <h3>Ebene 1 · Herkunft</h3>
+                            <p class="level-times">
+                                {% if entry.timing.state == "none" %}
+                                Zeitmessung nicht vorhanden.
+                                {% elif entry.timing.by_key.level1 %}
+                                Etappe <strong>{{ entry.timing.by_key.level1 }}</strong>
+                                <span>erster Klick bis Weiter</span>
                                 {% endif %}
-                            </dd>
+                            </p>
+                        </header>
+                        {% if entry.herkunft %}
+                        <ul class="details">
+                            {% for name in entry.herkunft %}
+                            <li>{{ name }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p>—</p>
+                        {% endif %}
+                    </section>
+                    <section class="level-pair">
+                        <header class="level-head">
+                            <h3>Ebene 2 · Interesse</h3>
+                            <p class="level-times">
+                                {% if entry.timing.by_key.gap2 %}
+                                Verweildauer ohne Aktion <strong>{{ entry.timing.by_key.gap2 }}</strong>
+                                {% endif %}
+                                {% if entry.timing.by_key.level2 %}
+                                Etappe <strong>{{ entry.timing.by_key.level2 }}</strong>
+                                <span>erster Klick bis Weiter</span>
+                                {% endif %}
+                            </p>
+                        </header>
+                        {% if entry.interessen %}
+                        <ul class="details">
+                            {% for item in entry.interessen %}
+                            <li>{{ item.value }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p>—</p>
+                        {% endif %}
+                    </section>
+                    <section class="level-pair">
+                        <header class="level-head">
+                            <h3>Ebene 3 · Details</h3>
+                            <p class="level-times">
+                                {% if entry.timing.by_key.gap3 %}
+                                Verweildauer ohne Aktion <strong>{{ entry.timing.by_key.gap3 }}</strong>
+                                {% endif %}
+                                {% if entry.timing.by_key.level3 %}
+                                Etappe <strong>{{ entry.timing.by_key.level3 }}</strong>
+                                <span>erster Klick bis Speichern</span>
+                                {% endif %}
+                            </p>
+                        </header>
+                        {% for item in entry.interessen %}
+                        <div class="detail-group">
+                            <h4>{{ item.value }}</h4>
+                            {% if item.details %}
+                            <ul class="details">
+                                {% for detail in item.details %}
+                                <li>{{ detail }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p>—</p>
+                            {% endif %}
                         </div>
-                    </dl>
+                        {% endfor %}
+                    </section>
+                    {% if entry.timing.by_key.total %}
+                    <p class="level-times level-total">Start bis Ende <strong>{{ entry.timing.by_key.total }}</strong></p>
+                    {% endif %}
+                    {% if entry.timing.state == "partial" %}
+                    <p class="timing-note">Die übrigen Etappen wurden bei dieser Erfassung nicht einzeln gemessen.</p>
+                    {% endif %}
                 </article>
                 {% endfor %}
             </div>
             {% else %}
-            <p class="empty">Noch keine Erfassungen vorhanden.</p>
+            <p class="empty">Am {{ selected_label }} gibt es keine Erfassungen.</p>
             {% endif %}
         </main>
     </div>
