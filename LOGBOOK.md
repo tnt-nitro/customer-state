@@ -417,3 +417,19 @@ Demodaten, Echtdaten und Alle sind dort nicht mehr wählbar. In der Entwicklung 
 Zeitraum abwählbar, Zustand und Wochentag umrandet. Geändert: `app/database.py`, `templates/auswertung.html`, `static/auswertung.js`, `static/style.css`. Keine Datenänderung. Kein Commit.
 
 Ein zweiter Klick auf den aktiven Zeitraum setzt die Auswahl auf Gesamt. Zustand und Wochentag umranden die passenden Tage so wie ein Zeitraum, die übrigen Felder bleiben deckend. Liegt zusätzlich ein Zeitraum, gilt die Umrandung nur in diesem Bereich. Geprüft: Quartal Juni bis August 2025 markiert 92 Tage, zusammen mit der dunkelsten Stufe bleiben 20 umrandet, alle in diesem Quartal. Ein zweiter Klick auf Quartal hebt den Zeitraum auf und behält die Stufe. `GET /auswertung` HTTP 200. Dienst neu gestartet.
+
+### 2026-10-05 00:24 (UTC+2)
+
+Boards, Stammdaten und Mitarbeitergrundmodell. Neu: `app/catalog.py`. Geändert: `app/database.py`, `app/main.py`, `static/selection.js`, `templates/index.html`, `templates/auswertung.html`, `templates/vergleich.html`, `scripts/generate_demodaten.py`. Kein Commit, kein Push. Die Datenbankdatei bleibt außerhalb von Git.
+
+Es gibt die Boards `verkauf` (Verkauf) und `werkstatt` (Werkstatt). Jedes Board hat drei Ebenen mit eigener Überschrift, Sortierung und Aktiv-Flag. Auswahloptionen haben eine stabile ID, einen Schlüssel und eine sichtbare Bezeichnung. Ein Schlüssel ändert sich nicht, wenn die Bezeichnung später geändert wird. Details hängen über `board_option_parents` an den Interessen, nur über IDs. Eine Detailoption kann mehreren Interessen gehören. Boards, Ebenen und Optionen werden nicht gelöscht, sondern mit `aktiv` aus- und eingeblendet.
+
+Die Verkaufserfassung liest Überschriften und Buttons aus diesen Stammdaten. Die bisherige Route zeigt weiterhin Verkauf. Werkstatt hat die drei Ebenen, aber keine Kategorien. Historische Werte, die im aktuellen Katalog nicht mehr wählbar sind, insbesondere Werkstatt und ihre Details, liegen als inaktive Verkaufsoptionen vor, damit alte Erfassungen lesbar und filterbar bleiben. Neue Erfassungen bieten nur aktive Optionen an. Auswertung und Vergleich listen, was im gewählten Datenbestand tatsächlich vorkommt, auch wenn die Option inzwischen inaktiv ist. Die Bezeichnung kommt aus den Stammdaten; in der Erfassungszeile bleibt zusätzlich der Text zum Speicherzeitpunkt stehen.
+
+Jede bestehende Erfassung zeigt auf das Board Verkauf. `employee_id` ist bei allen historischen Sätzen leer. Neue Tabellen `employees` und `employee_boards`: Anzeigename, optionaler Loginname, `pin_hash` ohne Klartext, Status `aktiv`, `gesperrt` oder `ausgeschieden`, Kennzeichen `is_admin`. Es wurde kein Mitarbeiter und kein PIN angelegt. Login, Adminoberfläche und Werkstattmaske fehlen bewusst.
+
+Migration beim Start, wiederholbar. Ein zweiter Start legt nichts doppelt an und vergibt keine IDs neu. Vorher und nachher: 3.000 Erfassungen, 2.975 Demo, 25 echt. ID 5 bleibt Google, Gravel, Specialized. ID 8 bleibt Leasingportal, Kinderrad, woom. 17 Zeitmessungen und 5 Korrekturen unverändert, alle an Options-IDs gebunden. Keine verwaisten Beziehungen, keine doppelten Schlüssel, `foreign_key_check` leer.
+
+Getestet und danach entfernt: aktive Verkaufsoption „Testoption“, eine Erfassung damit, Sichtbarkeit in Erfassung, Erfassungen und Auswertung, danach deaktiviert und aus der neuen Erfassung verschwunden, historisch weiter sichtbar. Anschließend nur diese Erfassung und diese Option gelöscht. Testmitarbeiter mit Verkauf und Werkstatt, ohne PIN, danach nur dieser Mitarbeiter gelöscht. Bestand danach wieder 3.000 / 2.975 / 25.
+
+`GET /`, `/erfassungen`, `/auswertung` und `/vergleich` liefern HTTP 200. Im Browser: Mehrfachauswahl, Weiter, getrennte Detailgruppen, Speichern wird erst mit einem Detail je Interesse aktiv. Freitag, 23.05.2025 bleibt bei 25 Erfassungen. Filter Herkunft Google zählt 692. Dienst neu gestartet.

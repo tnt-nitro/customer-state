@@ -6,6 +6,7 @@
     <title>Customer State</title>
     <link rel="stylesheet" href="{{ asset('style.css') }}">
     <script src="{{ asset('selection.js') }}" defer></script>
+    <script type="application/json" id="capture-catalog">{{ catalog | tojson }}</script>
 </head>
 <body>
     <div class="page capture">
@@ -23,31 +24,10 @@
                 </div>
                 <div class="phone-body">
                     <section class="step" data-level="1">
-                        <div class="choices" data-choice-group role="group" aria-labelledby="step-heading">
-                            <button type="button" class="choice" aria-pressed="false">Empfehlung</button>
-                            <button type="button" class="choice" aria-pressed="false">KI</button>
-                            <button type="button" class="choice" aria-pressed="false">Google</button>
-                            <button type="button" class="choice" aria-pressed="false">Leasingportal</button>
-                            <button type="button" class="choice" aria-pressed="false">Arbeit</button>
-                            <button type="button" class="choice" aria-pressed="false">Sonstiges</button>
-                            <button type="button" class="choice choice-wide" aria-pressed="false">Stammkunde</button>
-                        </div>
+                        <div class="choices" data-choice-group role="group" aria-labelledby="step-heading"></div>
                     </section>
                     <section class="step" data-level="2" hidden>
-                        <div class="choices" data-choice-group role="group" aria-labelledby="step-heading">
-                            <button type="button" class="choice" aria-pressed="false">MTB</button>
-                            <button type="button" class="choice" aria-pressed="false">E-MTB</button>
-                            <button type="button" class="choice" aria-pressed="false">Gravel</button>
-                            <button type="button" class="choice" aria-pressed="false">E-Gravel</button>
-                            <button type="button" class="choice" aria-pressed="false">Rennrad</button>
-                            <button type="button" class="choice" aria-pressed="false">Triathlon</button>
-                            <button type="button" class="choice" aria-pressed="false">Kinderrad</button>
-                            <button type="button" class="choice" aria-pressed="false">Lastenrad</button>
-                            <button type="button" class="choice" aria-pressed="false">Trekking</button>
-                            <button type="button" class="choice" aria-pressed="false">Trekking vollgefedert</button>
-                            <button type="button" class="choice" aria-pressed="false">Bekleidung</button>
-                            <button type="button" class="choice" aria-pressed="false">Zubehör</button>
-                        </div>
+                        <div class="choices" data-choice-group role="group" aria-labelledby="step-heading"></div>
                     </section>
                     <section class="step" data-level="3" hidden>
                         <div data-level3-groups></div>

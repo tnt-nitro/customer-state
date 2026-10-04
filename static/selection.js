@@ -23,27 +23,61 @@
     var level3OpenedAt = null;
     var level3StartedAt = null;
 
+    var catalogNode = document.getElementById("capture-catalog");
+    var catalog = {levels: []};
+    if (catalogNode) {
+        try {
+            catalog = JSON.parse(catalogNode.textContent);
+        } catch (error) {
+            catalog = {levels: []};
+        }
+    }
+
+    function levelDefinition(position) {
+        return (catalog.levels || []).filter(function (level) {
+            return level.position === position;
+        })[0] || {title: "", options: [], children: {}};
+    }
+
     var headings = {
-        1: "Wie ist der Kunde auf uns aufmerksam geworden?",
-        2: "Für was interessierte sich der Kunde?",
-        3: "Wofür interessiert sich der Kunde?",
+        1: levelDefinition(1).title,
+        2: levelDefinition(2).title,
+        3: levelDefinition(3).title,
         4: "Erfasste Auswahl"
     };
 
-    var interestsByBike = {
-        "MTB": ["Specialized", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-        "E-MTB": ["Specialized", "PIVOT", "AMFLOW", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-        "Gravel": ["PIVOT", "Specialized", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-        "E-Gravel": ["Specialized", "PIVOT", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-        "Rennrad": ["Specialized", "Produkt fehlte"],
-        "Triathlon": ["Specialized", "Produkt fehlte"],
-        "Kinderrad": ["woom", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-        "Lastenrad": ["Riese & Müller", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-        "Trekking": ["Riese & Müller", "Specialized", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-        "Trekking vollgefedert": ["Riese & Müller", "Specialized", "AMFLOW", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-        "Bekleidung": ["Helm", "Trikot", "Radhose", "Handschuhe", "Schuhe", "Regenbekleidung", "Jacke/Weste", "Brille", "Sonstiges"],
-        "Zubehör": ["Luftpumpe", "Beleuchtung", "Schutzbleche", "Schlösser", "Griffe", "Pflege und Reinigungsprodukte"]
-    };
+    function renderChoices(container, options) {
+        if (!container) {
+            return;
+        }
+        container.replaceChildren();
+        (options || []).forEach(function (option) {
+            var button = document.createElement("button");
+            button.type = "button";
+            button.className = "choice" + (option.span > 1 ? " choice-wide" : "");
+            button.setAttribute("aria-pressed", "false");
+            button.setAttribute("data-option-id", String(option.id));
+            button.textContent = option.label;
+            container.appendChild(button);
+        });
+    }
+
+    renderChoices(level1 ? level1.querySelector("[data-choice-group]") : null, levelDefinition(1).options);
+    renderChoices(level2 ? level2.querySelector("[data-choice-group]") : null, levelDefinition(2).options);
+
+    function selectedOptions(root) {
+        if (!root) {
+            return [];
+        }
+        return Array.from(root.querySelectorAll(".choice")).filter(function (button) {
+            return button.getAttribute("aria-pressed") === "true";
+        }).map(function (button) {
+            return {
+                id: Number(button.getAttribute("data-option-id")),
+                label: button.textContent
+            };
+        });
+    }
 
     function selectedIn(root) {
         if (!root) {
@@ -161,15 +195,19 @@
         var details = {};
         if (level3Groups) {
             level3Groups.querySelectorAll("[data-interest]").forEach(function (group) {
-                details[group.getAttribute("data-interest")] = selectedIn(group);
+                details[group.getAttribute("data-interest-id")] = selectedOptions(group).map(function (option) {
+                    return option.id;
+                });
             });
         }
         return {
-            level1: selectedIn(level1),
-            level2: selectedIn(level2).map(function (name) {
+            level1: selectedOptions(level1).map(function (option) {
+                return option.id;
+            }),
+            level2: selectedOptions(level2).map(function (option) {
                 return {
-                    value: name,
-                    level3: details[name] || []
+                    id: option.id,
+                    level3: details[String(option.id)] || []
                 };
             })
         };
@@ -178,11 +216,15 @@
     function currentRecord() {
         var groups = level3Groups ? Array.from(level3Groups.querySelectorAll("[data-interest]")) : [];
         return {
-            level1: selectedIn(level1),
+            level1: selectedOptions(level1).map(function (option) {
+                return option.id;
+            }),
             level2: groups.map(function (group) {
                 return {
-                    value: group.getAttribute("data-interest"),
-                    level3: selectedIn(group)
+                    id: Number(group.getAttribute("data-interest-id")),
+                    level3: selectedOptions(group).map(function (option) {
+                        return option.id;
+                    })
                 };
             }),
             started_at: startedAt,
@@ -292,28 +334,31 @@
         level3Groups.querySelectorAll("[data-interest]").forEach(function (group) {
             kept[group.getAttribute("data-interest")] = selectedIn(group);
         });
-        var names = selectedIn(level2);
+        var names = selectedOptions(level2);
+        var children = levelDefinition(3).children || {};
         level3Groups.replaceChildren();
-        names.forEach(function (name) {
-            var labels = interestsByBike[name];
-            if (!labels) {
+        names.forEach(function (option) {
+            var labels = children[String(option.id)] || [];
+            if (!labels.length) {
                 return;
             }
             var group = document.createElement("div");
             group.className = "detail-group";
-            group.setAttribute("data-interest", name);
+            group.setAttribute("data-interest", option.label);
+            group.setAttribute("data-interest-id", String(option.id));
             var title = document.createElement("h3");
-            title.textContent = name;
+            title.textContent = option.label;
             group.appendChild(title);
             var choices = document.createElement("div");
             choices.className = "choices";
             labels.forEach(function (label) {
                 var button = document.createElement("button");
                 button.type = "button";
-                button.className = "choice";
-                var active = kept[name] && kept[name].indexOf(label) !== -1;
+                button.className = "choice" + (label.span > 1 ? " choice-wide" : "");
+                var active = kept[option.label] && kept[option.label].indexOf(label.label) !== -1;
                 button.setAttribute("aria-pressed", active ? "true" : "false");
-                button.textContent = label;
+                button.setAttribute("data-option-id", String(label.id));
+                button.textContent = label.label;
                 button.addEventListener("click", function () {
                     if (!level3StartedAt) {
                         level3StartedAt = new Date().toISOString();
@@ -495,7 +540,7 @@
         [
             record.level1,
             record.level2.map(function (block) {
-                return block.value;
+                return block.label;
             }),
             details
         ].forEach(function (labels) {
@@ -544,6 +589,19 @@
             if (!recordComplete(record)) {
                 return;
             }
+            var summary = {
+                level1: selectedOptions(level1).map(function (option) {
+                    return option.label;
+                }),
+                level2: (level3Groups ? Array.from(level3Groups.querySelectorAll("[data-interest]")) : []).map(function (group) {
+                    return {
+                        label: group.getAttribute("data-interest"),
+                        level3: selectedOptions(group).map(function (option) {
+                            return option.label;
+                        })
+                    };
+                })
+            };
             busy = true;
             fetch("/api/erfassungen", {
                 method: "POST",
@@ -556,7 +614,7 @@
                 return response.json();
             }).then(function (payload) {
                 hideNotice();
-                showSummary(record);
+                showSummary(summary);
                 if (payload && payload.completed_label) {
                     setLast(payload.completed_label, "saved");
                 }

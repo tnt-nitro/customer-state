@@ -29,8 +29,8 @@
                         Herkunft
                         <select name="herkunft">
                             <option value="">Alle</option>
-                            {% for name in herkunft_options %}
-                            <option value="{{ name }}" {% if herkunft == name %}selected{% endif %}>{{ name }}</option>
+                            {% for item in herkunft_options %}
+                            <option value="{{ item.id }}" {% if herkunft == item.id|string %}selected{% endif %}>{{ item.label }}</option>
                             {% endfor %}
                         </select>
                     </label>
@@ -38,13 +38,13 @@
                         Interesse
                         <select name="interesse">
                             <option value="">Alle</option>
-                            {% for name in interesse_options %}
-                            <option value="{{ name }}" {% if interesse == name %}selected{% endif %}>{{ name }}</option>
+                            {% for item in interesse_options %}
+                            <option value="{{ item.id }}" {% if interesse == item.id|string %}selected{% endif %}>{{ item.label }}</option>
                             {% endfor %}
                         </select>
                     </label>
                 </div>
-                <p class="filter-state">{{ modus_label }} · {{ art_label }}{% if herkunft %} · Herkunft {{ herkunft }}{% endif %}{% if interesse %} · Interesse {{ interesse }}{% endif %}</p>
+                <p class="filter-state">{{ modus_label }} · {{ art_label }}{% if herkunft_label %} · Herkunft {{ herkunft_label }}{% endif %}{% if interesse_label %} · Interesse {{ interesse_label }}{% endif %}</p>
                 {% if ignored %}
                 <p class="filter-note">Unbekannte Filterwerte wurden ignoriert.</p>
                 {% endif %}

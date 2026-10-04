@@ -4,76 +4,12 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from app.catalog import ensure_master_data
 from app.periods import token_for_day
 
 BERLIN = ZoneInfo("Europe/Berlin")
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "customer_state.db"
-
-LEVEL1_VALUES = (
-    "Empfehlung",
-    "KI",
-    "Google",
-    "Leasingportal",
-    "Arbeit",
-    "Sonstiges",
-    "Stammkunde",
-)
-
-LEVEL2_VALUES = (
-    "MTB",
-    "E-MTB",
-    "Gravel",
-    "E-Gravel",
-    "Rennrad",
-    "Triathlon",
-    "Kinderrad",
-    "Lastenrad",
-    "Trekking",
-    "Trekking vollgefedert",
-    "Bekleidung",
-    "Zubehör",
-)
-
-INTERESTS = {
-    "MTB": ["Specialized", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-    "E-MTB": ["Specialized", "PIVOT", "AMFLOW", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-    "Gravel": ["PIVOT", "Specialized", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-    "E-Gravel": ["Specialized", "PIVOT", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-    "Rennrad": ["Specialized", "Produkt fehlte"],
-    "Triathlon": ["Specialized", "Produkt fehlte"],
-    "Kinderrad": ["woom", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-    "Lastenrad": ["Riese & Müller", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-    "Trekking": ["Riese & Müller", "Specialized", "Produkt fehlte", "Leasing", "Kauf", "Reparatur"],
-    "Trekking vollgefedert": [
-        "Riese & Müller",
-        "Specialized",
-        "AMFLOW",
-        "Produkt fehlte",
-        "Leasing",
-        "Kauf",
-        "Reparatur",
-    ],
-    "Bekleidung": [
-        "Helm",
-        "Trikot",
-        "Radhose",
-        "Handschuhe",
-        "Schuhe",
-        "Regenbekleidung",
-        "Jacke/Weste",
-        "Brille",
-        "Sonstiges",
-    ],
-    "Zubehör": [
-        "Luftpumpe",
-        "Beleuchtung",
-        "Schutzbleche",
-        "Schlösser",
-        "Griffe",
-        "Pflege und Reinigungsprodukte",
-    ],
-}
 
 WEEKDAY_NAMES = (
     "Montag",
@@ -171,6 +107,7 @@ def init_db():
             _migrate_relational(connection)
         _ensure_stage_marks(connection)
         _ensure_korrektur(connection)
+        ensure_master_data(connection)
         connection.commit()
     except Exception:
         connection.rollback()
@@ -452,26 +389,26 @@ def save_korrektur(from_level, to_level, elapsed_seconds, had_selection, level1,
         for index, wert in enumerate(level1):
             connection.execute(
                 """
-                INSERT INTO korrektur_status (korrektur_id, level, parent, position, wert)
-                VALUES (?, 1, NULL, ?, ?)
+                INSERT INTO korrektur_status (korrektur_id, level, parent, position, wert, option_id)
+                VALUES (?, 1, NULL, ?, ?, ?)
                 """,
-                (korrektur_id, index, wert),
+                (korrektur_id, index, option["label"], option["id"]),
             )
         for index, block in enumerate(level2):
             connection.execute(
                 """
-                INSERT INTO korrektur_status (korrektur_id, level, parent, position, wert)
-                VALUES (?, 2, NULL, ?, ?)
+                INSERT INTO korrektur_status (korrektur_id, level, parent, position, wert, option_id)
+                VALUES (?, 2, NULL, ?, ?, ?)
                 """,
-                (korrektur_id, index, block["value"]),
+                (korrektur_id, index, block["label"], block["id"]),
             )
-            for detail_index, detail in enumerate(block["level3"]):
+            for detail_index, option in enumerate(block["level3"]):
                 connection.execute(
                     """
-                    INSERT INTO korrektur_status (korrektur_id, level, parent, position, wert)
-                    VALUES (?, 3, ?, ?, ?)
+                    INSERT INTO korrektur_status (korrektur_id, level, parent, position, wert, option_id)
+                    VALUES (?, 3, ?, ?, ?, ?)
                     """,
-                    (korrektur_id, block["value"], detail_index, detail),
+                    (korrektur_id, block["label"], detail_index, option["label"], option["id"]),
                 )
         connection.commit()
         return korrektur_id
@@ -598,11 +535,15 @@ def list_erfassungen(day=None, connection=None):
             SELECT e.id, e.created_at, e.started_at, e.level1_completed_at,
                    e.level2_opened_at, e.level2_started_at, e.level2_completed_at,
                    e.level3_opened_at, e.level3_started_at, e.completed_at,
-                   h.wert, i.id, i.wert, d.wert
+                   COALESCE(ho.label, h.wert), i.id, COALESCE(io.label, i.wert),
+                   COALESCE(do.label, d.wert)
             FROM erfassungen AS e
             LEFT JOIN erfassung_herkunft AS h ON h.erfassung_id = e.id
+            LEFT JOIN board_options AS ho ON ho.id = h.option_id
             LEFT JOIN erfassung_interesse AS i ON i.erfassung_id = e.id
+            LEFT JOIN board_options AS io ON io.id = i.option_id
             LEFT JOIN erfassung_detail AS d ON d.interesse_id = i.id
+            LEFT JOIN board_options AS do ON do.id = d.option_id
             {where}
             ORDER BY e.id, h.position, h.id, i.position, i.id, d.position, d.id
             """,
@@ -688,7 +629,175 @@ def _parse_optional_time(value):
     return _parse_client_time(value)
 
 
+def _option_number(value):
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def _active_options(connection, board_key, position):
+    rows = connection.execute(
+        """
+        SELECT o.id, o.key, o.label, o.position, o.span
+        FROM board_options AS o
+        JOIN board_levels AS l ON l.id = o.level_id
+        JOIN boards AS b ON b.id = l.board_id
+        WHERE b.key = ? AND l.position = ? AND o.aktiv = 1 AND l.aktiv = 1 AND b.aktiv = 1
+        ORDER BY o.position, o.id
+        """,
+        (board_key, position),
+    ).fetchall()
+    return [
+        {"id": row[0], "key": row[1], "label": row[2], "position": row[3], "span": row[4]}
+        for row in rows
+    ]
+
+
+def _active_children(connection, parent_id):
+    rows = connection.execute(
+        """
+        SELECT child.id, child.key, child.label, link.position, child.span
+        FROM board_option_parents AS link
+        JOIN board_options AS child ON child.id = link.child_option_id
+        JOIN board_options AS parent ON parent.id = link.parent_option_id
+        WHERE link.parent_option_id = ? AND child.aktiv = 1 AND parent.aktiv = 1
+        ORDER BY link.position, child.id
+        """,
+        (parent_id,),
+    ).fetchall()
+    return [
+        {"id": row[0], "key": row[1], "label": row[2], "position": row[3], "span": row[4]}
+        for row in rows
+    ]
+
+
+def capture_catalog(board_key="verkauf"):
+    connection = connect()
+    try:
+        board = connection.execute(
+            "SELECT key, name FROM boards WHERE key = ? AND aktiv = 1",
+            (board_key,),
+        ).fetchone()
+        if board is None:
+            return {"key": board_key, "name": "", "levels": []}
+        levels = []
+        for position in (1, 2, 3):
+            title = connection.execute(
+                """
+                SELECT l.title
+                FROM board_levels AS l
+                JOIN boards AS b ON b.id = l.board_id
+                WHERE b.key = ? AND l.position = ? AND l.aktiv = 1
+                """,
+                (board_key, position),
+            ).fetchone()
+            options = _active_options(connection, board_key, position)
+            level = {
+                "position": position,
+                "title": title[0] if title else "",
+                "options": options,
+            }
+            if position == 3:
+                children = {}
+                for option in _active_options(connection, board_key, 2):
+                    nested = _active_children(connection, option["id"])
+                    if nested:
+                        children[str(option["id"])] = nested
+                level["children"] = children
+            levels.append(level)
+        return {"key": board[0], "name": board[1], "levels": levels}
+    finally:
+        connection.close()
+
+
+def _take_options(raw_ids, allowed, require, message="Die Erfassung ist unvollständig."):
+    if not isinstance(raw_ids, list) or (require and not raw_ids):
+        raise ValueError(message)
+    chosen = []
+    seen = set()
+    allowed_by_id = {item["id"]: item for item in allowed}
+    for raw in raw_ids:
+        number = _option_number(raw)
+        option = allowed_by_id.get(number)
+        if option is None or number in seen:
+            raise ValueError(message)
+        seen.add(number)
+        chosen.append({"id": option["id"], "label": option["label"]})
+    return chosen
+
+
+def prepare_capture(level1_raw, level2_raw, board_key="verkauf"):
+    connection = connect()
+    try:
+        level1 = _take_options(level1_raw, _active_options(connection, board_key, 1), True)
+        if not isinstance(level2_raw, list) or not level2_raw:
+            raise ValueError("Die Erfassung ist unvollständig.")
+        parents = {item["id"]: item for item in _active_options(connection, board_key, 2)}
+        level2 = []
+        seen = set()
+        for block in level2_raw:
+            if not isinstance(block, dict):
+                raise ValueError("Die Erfassung ist unvollständig.")
+            number = _option_number(block.get("id"))
+            parent = parents.get(number)
+            details = block.get("level3")
+            if parent is None or number in seen or not isinstance(details, list) or not details:
+                raise ValueError("Die Erfassung ist unvollständig.")
+            seen.add(number)
+            children = _take_options(details, _active_children(connection, number), True)
+            level2.append({"id": parent["id"], "label": parent["label"], "level3": children})
+        board = connection.execute(
+            "SELECT id FROM boards WHERE key = ? AND aktiv = 1",
+            (board_key,),
+        ).fetchone()
+        if board is None:
+            raise ValueError("Die Erfassung ist unvollständig.")
+        return board[0], level1, level2
+    finally:
+        connection.close()
+
+
+def prepare_korrektur(level1_raw, level2_raw, board_key="verkauf"):
+    connection = connect()
+    try:
+        level1 = _take_options(
+            level1_raw or [],
+            _active_options(connection, board_key, 1),
+            False,
+            "Die Korrektur ist unvollständig.",
+        )
+        if not isinstance(level2_raw, list):
+            raise ValueError("Die Korrektur ist unvollständig.")
+        parents = {item["id"]: item for item in _active_options(connection, board_key, 2)}
+        level2 = []
+        seen = set()
+        for block in level2_raw:
+            if not isinstance(block, dict):
+                raise ValueError("Die Korrektur ist unvollständig.")
+            number = _option_number(block.get("id"))
+            parent = parents.get(number)
+            details = block.get("level3") or []
+            if parent is None or number in seen or not isinstance(details, list):
+                raise ValueError("Die Korrektur ist unvollständig.")
+            seen.add(number)
+            children = _take_options(
+                details,
+                _active_children(connection, number),
+                False,
+                "Die Korrektur ist unvollständig.",
+            )
+            level2.append({"id": parent["id"], "label": parent["label"], "level3": children})
+        return level1, level2
+    finally:
+        connection.close()
+
+
 def save_erfassung(
+    board_id,
     level1,
     level2,
     started_at,
@@ -731,14 +840,15 @@ def save_erfassung(
         cursor = connection.execute(
             """
             INSERT INTO erfassungen (
-                created_at, is_demo, started_at, level1_completed_at,
+                created_at, is_demo, board_id, started_at, level1_completed_at,
                 level2_opened_at, level2_started_at, level2_completed_at,
                 level3_opened_at, level3_started_at, completed_at
             )
-            VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 _stamp(completed),
+                board_id,
                 _stamp(started),
                 _stamp(level1_done),
                 _stamp(level2_opened) if level2_opened else None,
@@ -752,28 +862,31 @@ def save_erfassung(
         erfassung_id = cursor.lastrowid
         connection.executemany(
             """
-            INSERT INTO erfassung_herkunft (erfassung_id, position, wert)
-            VALUES (?, ?, ?)
+            INSERT INTO erfassung_herkunft (erfassung_id, position, wert, option_id)
+            VALUES (?, ?, ?, ?)
             """,
-            [(erfassung_id, index, wert) for index, wert in enumerate(level1)],
+            [
+                (erfassung_id, index, option["label"], option["id"])
+                for index, option in enumerate(level1)
+            ],
         )
         for index, block in enumerate(level2):
             interesse_cursor = connection.execute(
                 """
-                INSERT INTO erfassung_interesse (erfassung_id, position, wert)
-                VALUES (?, ?, ?)
+                INSERT INTO erfassung_interesse (erfassung_id, position, wert, option_id)
+                VALUES (?, ?, ?, ?)
                 """,
-                (erfassung_id, index, block["value"]),
+                (erfassung_id, index, block["label"], block["id"]),
             )
             interesse_id = interesse_cursor.lastrowid
             connection.executemany(
                 """
-                INSERT INTO erfassung_detail (interesse_id, position, wert)
-                VALUES (?, ?, ?)
+                INSERT INTO erfassung_detail (interesse_id, position, wert, option_id)
+                VALUES (?, ?, ?, ?)
                 """,
                 [
-                    (interesse_id, detail_index, wert)
-                    for detail_index, wert in enumerate(block["level3"])
+                    (interesse_id, detail_index, option["label"], option["id"])
+                    for detail_index, option in enumerate(block["level3"])
                 ],
             )
         connection.commit()
@@ -807,46 +920,129 @@ def _modus_clause(modus):
     return "1 = 1", []
 
 
+def _used_options(connection, modus, position):
+    clause, params = _modus_clause(modus)
+    if position == 1:
+        usage = """
+            JOIN erfassung_herkunft AS used ON used.option_id = o.id
+            JOIN erfassungen AS e ON e.id = used.erfassung_id
+        """
+    elif position == 2:
+        usage = """
+            JOIN erfassung_interesse AS used ON used.option_id = o.id
+            JOIN erfassungen AS e ON e.id = used.erfassung_id
+        """
+    else:
+        usage = """
+            JOIN erfassung_detail AS used ON used.option_id = o.id
+            JOIN erfassung_interesse AS interest ON interest.id = used.interesse_id
+            JOIN erfassungen AS e ON e.id = interest.erfassung_id
+        """
+    rows = connection.execute(
+        f"""
+        SELECT DISTINCT o.id, o.key, o.label, o.aktiv, o.position
+        FROM board_options AS o
+        JOIN board_levels AS l ON l.id = o.level_id
+        {usage}
+        WHERE l.position = ? AND {clause}
+        ORDER BY o.position, o.id
+        """,
+        [position, *params],
+    ).fetchall()
+    return [
+        {"id": row[0], "key": row[1], "label": row[2], "aktiv": row[3], "position": row[4]}
+        for row in rows
+    ]
+
+
+def _match_options(options, raw):
+    text = (raw or "").strip()
+    if not text:
+        return []
+    if text.isdigit():
+        by_id = [option for option in options if str(option["id"]) == text]
+        if by_id:
+            return by_id
+    return [
+        option
+        for option in options
+        if option["label"] == text or option["key"] == text
+    ]
+
+
+def _filter_ids(options, raw):
+    text = (raw or "").strip()
+    if not text:
+        return None, ""
+    matched = _match_options(options, text)
+    if not matched:
+        return None, ""
+    if len(matched) == 1:
+        return [matched[0]["id"]], str(matched[0]["id"])
+    return [option["id"] for option in matched], text
+
+
 def _load_entries(connection, modus, herkunft, interesse, detail=""):
     clause, params = _modus_clause(modus)
+    level1_options = _used_options(connection, modus, 1)
+    level2_options = _used_options(connection, modus, 2)
+    level3_options = _used_options(connection, modus, 3)
+    herkunft_ids, applied_herkunft = _filter_ids(level1_options, herkunft)
+    interesse_ids, applied_interesse = _filter_ids(level2_options, interesse)
+    detail_ids, applied_detail = _filter_ids(level3_options, detail)
+    if (herkunft or "").strip() and not applied_herkunft:
+        herkunft_ids = None
+    if (interesse or "").strip() and not applied_interesse:
+        interesse_ids = None
+    if (detail or "").strip() and not applied_detail:
+        detail_ids = None
     sql = f"""
         SELECT e.id, e.created_at, e.started_at, e.level1_completed_at,
                e.level2_opened_at, e.level2_started_at, e.level2_completed_at,
                e.level3_opened_at, e.level3_started_at, e.completed_at,
-               h.wert, i.id, i.wert, d.wert
+               h.option_id, COALESCE(ho.label, h.wert),
+               i.id, i.option_id, COALESCE(io.label, i.wert),
+               d.option_id, COALESCE(do.label, d.wert)
         FROM erfassungen AS e
         LEFT JOIN erfassung_herkunft AS h ON h.erfassung_id = e.id
+        LEFT JOIN board_options AS ho ON ho.id = h.option_id
         LEFT JOIN erfassung_interesse AS i ON i.erfassung_id = e.id
+        LEFT JOIN board_options AS io ON io.id = i.option_id
         LEFT JOIN erfassung_detail AS d ON d.interesse_id = i.id
+        LEFT JOIN board_options AS do ON do.id = d.option_id
         WHERE {clause}
     """
-    if herkunft:
-        sql += """
+    if herkunft_ids:
+        marks = ",".join("?" for _ in herkunft_ids)
+        sql += f"""
             AND EXISTS (
                 SELECT 1 FROM erfassung_herkunft AS hf
-                WHERE hf.erfassung_id = e.id AND hf.wert = ?
+                WHERE hf.erfassung_id = e.id AND hf.option_id IN ({marks})
             )
         """
-        params.append(herkunft)
-    if interesse:
-        sql += """
+        params.extend(herkunft_ids)
+    if interesse_ids:
+        marks = ",".join("?" for _ in interesse_ids)
+        sql += f"""
             AND EXISTS (
                 SELECT 1 FROM erfassung_interesse AS inf
-                WHERE inf.erfassung_id = e.id AND inf.wert = ?
+                WHERE inf.erfassung_id = e.id AND inf.option_id IN ({marks})
             )
         """
-        params.append(interesse)
-    if detail:
-        sql += """
+        params.extend(interesse_ids)
+    if detail_ids:
+        marks = ",".join("?" for _ in detail_ids)
+        sql += f"""
             AND EXISTS (
                 SELECT 1 FROM erfassung_detail AS df
                 JOIN erfassung_interesse AS inf ON inf.id = df.interesse_id
-                WHERE inf.erfassung_id = e.id AND df.wert = ?
+                WHERE inf.erfassung_id = e.id AND df.option_id IN ({marks})
         """
-        params.append(detail)
-        if interesse:
-            sql += " AND inf.wert = ?"
-            params.append(interesse)
+        params.extend(detail_ids)
+        if interesse_ids:
+            interest_marks = ",".join("?" for _ in interesse_ids)
+            sql += f" AND inf.option_id IN ({interest_marks})"
+            params.extend(interesse_ids)
         sql += ")"
     sql += " ORDER BY e.id, h.position, h.id, i.position, i.id, d.position, d.id"
     rows = connection.execute(sql, params).fetchall()
@@ -863,10 +1059,13 @@ def _load_entries(connection, modus, herkunft, interesse, detail=""):
             level3_opened_at,
             level3_started_at,
             completed_at,
-            herkunft_wert,
-            interesse_id,
-            interesse_wert,
-            detail,
+            herkunft_option_id,
+            herkunft_label,
+            interesse_row_id,
+            interesse_option_id,
+            interesse_label,
+            detail_option_id,
+            detail_label,
         ) = row
         entry = grouped.get(row_id)
         if entry is None:
@@ -874,6 +1073,7 @@ def _load_entries(connection, modus, herkunft, interesse, detail=""):
             entry = {
                 "id": row_id,
                 "herkunft": [],
+                "herkunft_ids": [],
                 "interessen": [],
                 "_interessen": {},
                 "moment": moment,
@@ -890,16 +1090,23 @@ def _load_entries(connection, modus, herkunft, interesse, detail=""):
                 "completed": _as_berlin(completed_at) if completed_at else None,
             }
             grouped[row_id] = entry
-        if herkunft_wert and herkunft_wert not in entry["herkunft"]:
-            entry["herkunft"].append(herkunft_wert)
-        if interesse_id is not None and interesse_id not in entry["_interessen"]:
-            block = {"value": interesse_wert, "details": []}
-            entry["_interessen"][interesse_id] = block
+        if herkunft_option_id and herkunft_option_id not in entry["herkunft_ids"]:
+            entry["herkunft_ids"].append(herkunft_option_id)
+            entry["herkunft"].append(herkunft_label)
+        if interesse_row_id is not None and interesse_row_id not in entry["_interessen"]:
+            block = {
+                "id": interesse_option_id,
+                "value": interesse_label,
+                "details": [],
+                "detail_ids": [],
+            }
+            entry["_interessen"][interesse_row_id] = block
             entry["interessen"].append(block)
-        if detail is not None and interesse_id is not None:
-            block = entry["_interessen"][interesse_id]
-            if detail not in block["details"]:
-                block["details"].append(detail)
+        if detail_label is not None and interesse_row_id is not None:
+            block = entry["_interessen"][interesse_row_id]
+            if detail_option_id not in block["detail_ids"]:
+                block["detail_ids"].append(detail_option_id)
+                block["details"].append(detail_label)
     entries = []
     for entry in grouped.values():
         del entry["_interessen"]
@@ -908,49 +1115,11 @@ def _load_entries(connection, modus, herkunft, interesse, detail=""):
 
 
 def _known_values(connection, modus):
-    clause, params = _modus_clause(modus)
-    level1 = list(LEVEL1_VALUES)
-    level2 = list(LEVEL2_VALUES)
-    for (name,) in connection.execute(
-        f"""
-        SELECT DISTINCT h.wert
-        FROM erfassung_herkunft AS h
-        JOIN erfassungen AS e ON e.id = h.erfassung_id
-        WHERE {clause}
-        """,
-        params,
-    ):
-        if name not in level1:
-            level1.append(name)
-    for (name,) in connection.execute(
-        f"""
-        SELECT DISTINCT i.wert
-        FROM erfassung_interesse AS i
-        JOIN erfassungen AS e ON e.id = i.erfassung_id
-        WHERE {clause}
-        """,
-        params,
-    ):
-        if name not in level2:
-            level2.append(name)
-    level3 = []
-    for interest in list(LEVEL2_VALUES) + [name for name in INTERESTS if name not in LEVEL2_VALUES]:
-        for name in INTERESTS.get(interest, []):
-            if name not in level3:
-                level3.append(name)
-    for (name,) in connection.execute(
-        f"""
-        SELECT DISTINCT d.wert
-        FROM erfassung_detail AS d
-        JOIN erfassung_interesse AS i ON i.id = d.interesse_id
-        JOIN erfassungen AS e ON e.id = i.erfassung_id
-        WHERE {clause}
-        """,
-        params,
-    ):
-        if name not in level3:
-            level3.append(name)
-    return level1, level2, level3
+    return (
+        _used_options(connection, modus, 1),
+        _used_options(connection, modus, 2),
+        _used_options(connection, modus, 3),
+    )
 
 
 def _weekday_occurrences(start, end):
@@ -972,8 +1141,11 @@ def _bars(items, value_key="count"):
     return items
 
 
-def _ranked(names, counts, total):
-    items = [{"name": name, "count": counts.get(name, 0)} for name in names]
+def _ranked(options, counts, total):
+    items = [
+        {"id": option["id"], "name": option["label"], "count": counts.get(option["id"], 0)}
+        for option in options
+    ]
     items.sort(key=lambda item: (-item["count"], item["name"]))
     for item in items:
         item["count_label"] = _de_int(item["count"])
@@ -1357,16 +1529,24 @@ def build_auswertung(
     if connection is None:
         connection = connect()
     try:
-        level1_names, level2_names, level3_names = _known_values(connection, modus)
-        if herkunft and herkunft not in level1_names:
-            herkunft = ""
-        if interesse and interesse not in level2_names:
-            interesse = ""
-        if detail and detail not in level3_names:
-            detail = ""
-        applied_detail = detail
-        entries = _load_entries(connection, modus, herkunft, interesse, detail)
-        timed_entries = _load_entries(connection, "alle", herkunft, interesse, detail)
+        level1_options, level2_options, level3_options = _known_values(connection, modus)
+        _herkunft_ids, applied_herkunft = _filter_ids(level1_options, herkunft)
+        _interesse_ids, applied_interesse = _filter_ids(level2_options, interesse)
+        _detail_ids, applied_detail = _filter_ids(level3_options, detail)
+        entries = _load_entries(
+            connection,
+            modus,
+            applied_herkunft,
+            applied_interesse,
+            applied_detail,
+        )
+        timed_entries = _load_entries(
+            connection,
+            "alle",
+            applied_herkunft,
+            applied_interesse,
+            applied_detail,
+        )
     finally:
         if close_connection:
             connection.close()
@@ -1427,21 +1607,21 @@ def build_auswertung(
     detail_counts = Counter()
     combinations = Counter()
     for entry in entries:
-        for name in entry["herkunft"]:
-            by_level1[name] += 1
+        for option_id in entry["herkunft_ids"]:
+            by_level1[option_id] += 1
         seen_interest = set()
         for block in entry["interessen"]:
-            if block["value"] not in seen_interest:
-                by_level2[block["value"]] += 1
-                seen_interest.add(block["value"])
+            if block["id"] not in seen_interest:
+                by_level2[block["id"]] += 1
+                seen_interest.add(block["id"])
         seen_details = set()
         for block in entry["interessen"]:
-            for detail in block["details"]:
-                if detail not in seen_details:
-                    detail_counts[detail] += 1
-                    seen_details.add(detail)
+            for detail_id, detail_label in zip(block["detail_ids"], block["details"]):
+                if detail_id not in seen_details:
+                    detail_counts[detail_id] += 1
+                    seen_details.add(detail_id)
                 for origin in entry["herkunft"]:
-                    combinations[(origin, block["value"], detail)] += 1
+                    combinations[(origin, block["value"], detail_label)] += 1
 
     weekday_clock = Counter(
         entry["hour"] for entry in entries if entry["weekday"] != 5 and entry["weekday"] != 6
@@ -1513,8 +1693,8 @@ def build_auswertung(
         )
         strongest_month_count = _de_int(peak)
 
-    herkunft_items = _ranked(level1_names, by_level1, total)
-    interesse_items = _ranked(level2_names, by_level2, total)
+    herkunft_items = _ranked(level1_options, by_level1, total)
+    interesse_items = _ranked(level2_options, by_level2, total)
 
     def mode_label(items):
         if not items or not items[0]["count"]:
@@ -1526,9 +1706,10 @@ def build_auswertung(
     top_herkunft = mode_label(herkunft_items)
     top_interesse = mode_label(interesse_items)
 
+    detail_labels = {option["id"]: option["label"] for option in level3_options}
     details = [
-        {"name": name, "count": count}
-        for name, count in detail_counts.most_common()
+        {"name": detail_labels.get(option_id, str(option_id)), "count": count}
+        for option_id, count in detail_counts.most_common()
     ]
     for item in details:
         item["count_label"] = _de_int(item["count"])
@@ -1566,11 +1747,11 @@ def build_auswertung(
         "interesse": interesse_items,
         "details": details,
         "combinations": combo_rows,
-        "herkunft_options": level1_names,
-        "interesse_options": level2_names,
-        "detail_options": level3_names,
-        "applied_herkunft": herkunft,
-        "applied_interesse": interesse,
+        "herkunft_options": level1_options,
+        "interesse_options": level2_options,
+        "detail_options": level3_options,
+        "applied_herkunft": applied_herkunft,
+        "applied_interesse": applied_interesse,
         "applied_detail": applied_detail,
         "duration": _duration_report(timed_entries),
         "calendar": calendar,
@@ -1664,6 +1845,12 @@ def _side_summary(entries, period):
     }
 
 
+def apply_option_filter(options, raw):
+    _ids, applied = _filter_ids(options, raw)
+    invalid = bool((raw or "").strip()) and not applied
+    return applied, invalid
+
+
 def filter_names(modus):
     connection = connect()
     try:
@@ -1720,6 +1907,7 @@ def compare_periods(modus, herkunft, interesse, left, right, art):
     connection = connect()
     try:
         entries = _load_entries(connection, modus, herkunft, interesse)
+        level1_options, level2_options, _level3_options = _known_values(connection, modus)
     finally:
         connection.close()
 
@@ -1741,14 +1929,14 @@ def compare_periods(modus, herkunft, interesse, left, right, art):
         _counts_for(right_entries, lambda entry: entry["herkunft"]),
         left_summary["total"],
         right_summary["total"],
-        LEVEL1_VALUES,
+        [option["label"] for option in level1_options],
     )
     interesse_rows = _aligned_rows(
         _counts_for(left_entries, lambda entry: [block["value"] for block in entry["interessen"]]),
         _counts_for(right_entries, lambda entry: [block["value"] for block in entry["interessen"]]),
         left_summary["total"],
         right_summary["total"],
-        LEVEL2_VALUES,
+        [option["label"] for option in level2_options],
     )
     duration_rows = []
     left_stages = {stage["key"]: stage for stage in left_summary["duration"]["stages"]}

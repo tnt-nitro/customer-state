@@ -19,7 +19,8 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.database import BERLIN, DB_PATH  # noqa: E402
+from app.catalog import link_capture_options  # noqa: E402
+from app.database import BERLIN, DB_PATH, init_db  # noqa: E402
 
 SEED = 20250101
 PRESERVE_IDS = (5, 8)
@@ -709,6 +710,7 @@ def snapshot(connection):
 
 
 def insert_records(records):
+    init_db()
     connection = sqlite3.connect(DB_PATH)
     connection.execute("PRAGMA foreign_keys = ON")
     try:
@@ -761,6 +763,7 @@ def insert_records(records):
                         for detail_index, wert in enumerate(block["details"])
                     ],
                 )
+            link_capture_options(connection, new_id)
         after = snapshot(connection)
         if after != before:
             raise RuntimeError("ID 5 oder ID 8 wurde verändert")

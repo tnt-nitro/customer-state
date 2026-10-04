@@ -9,15 +9,17 @@ from fastapi.templating import Jinja2Templates
 
 from app.database import (
     BERLIN,
-    INTERESTS,
-    LEVEL1_VALUES,
+    apply_option_filter,
     build_auswertung,
+    capture_catalog,
     correction_report,
     compare_periods,
     erfassungen_board,
     filter_names,
     init_db,
     latest_real_capture_label,
+    prepare_capture,
+    prepare_korrektur,
     save_erfassung,
     save_korrektur,
     suggest_compare_days,
@@ -94,6 +96,7 @@ async def home(request: Request):
             "active": "erfassung",
             "last_capture": latest_real_capture_label(),
             "last_capture_saved": bool(latest_real_capture_label()),
+            "catalog": capture_catalog("verkauf"),
         },
     )
 
@@ -322,11 +325,11 @@ async def auswertung(request: Request):
         wochentage=filters["wochentage"],
     )
     ignored = filters["ignored"]
-    if filters["herkunft"] and filters["herkunft"] != result["applied_herkunft"]:
+    if filters["herkunft"] and not result["applied_herkunft"]:
         ignored = True
-    if filters["interesse"] and filters["interesse"] != result["applied_interesse"]:
+    if filters["interesse"] and not result["applied_interesse"]:
         ignored = True
-    if filters["detail"] and filters["detail"] != result["applied_detail"]:
+    if filters["detail"] and not result["applied_detail"]:
         ignored = True
     return templates.TemplateResponse(
         request,
@@ -449,14 +452,14 @@ async def vergleich(request: Request):
     if art not in {value for value, _label in ARTS}:
         art = "tag"
         ignored = True
-    herkunft_names, interesse_names = filter_names(modus)
-    herkunft = (params.get("herkunft") or "").strip()
-    interesse = (params.get("interesse") or "").strip()
-    if herkunft and herkunft not in herkunft_names:
-        herkunft = ""
-        ignored = True
-    if interesse and interesse not in interesse_names:
-        interesse = ""
+    herkunft_options, interesse_options = filter_names(modus)
+    herkunft, invalid_herkunft = apply_option_filter(
+        herkunft_options, (params.get("herkunft") or "").strip()
+    )
+    interesse, invalid_interesse = apply_option_filter(
+        interesse_options, (params.get("interesse") or "").strip()
+    )
+    if invalid_herkunft or invalid_interesse:
         ignored = True
     today = datetime.now(BERLIN).date()
     left_day, right_day = suggest_compare_days(modus, herkunft, interesse, today)
@@ -497,8 +500,16 @@ async def vergleich(request: Request):
             "rechts": rechts,
             "herkunft": herkunft,
             "interesse": interesse,
-            "herkunft_options": herkunft_names,
-            "interesse_options": interesse_names,
+            "herkunft_label": next(
+                (item["label"] for item in herkunft_options if str(item["id"]) == herkunft),
+                herkunft,
+            ),
+            "interesse_label": next(
+                (item["label"] for item in interesse_options if str(item["id"]) == interesse),
+                interesse,
+            ),
+            "herkunft_options": herkunft_options,
+            "interesse_options": interesse_options,
             "choices": choices.get(art, []),
             "ignored": ignored,
             "report": report,
@@ -558,39 +569,6 @@ def _clean_text(value):
 def _validate_capture(payload):
     if not isinstance(payload, dict):
         raise ValueError("Die Erfassung ist unvollständig.")
-    raw_level1 = payload.get("level1")
-    raw_level2 = payload.get("level2")
-    if not isinstance(raw_level1, list) or not raw_level1:
-        raise ValueError("Die Erfassung ist unvollständig.")
-    if not isinstance(raw_level2, list) or not raw_level2:
-        raise ValueError("Die Erfassung ist unvollständig.")
-
-    level1 = []
-    for item in raw_level1:
-        text = _clean_text(item)
-        if text not in LEVEL1_VALUES or text in level1:
-            raise ValueError("Die Erfassung ist unvollständig.")
-        level1.append(text)
-
-    level2 = []
-    seen = set()
-    for block in raw_level2:
-        if not isinstance(block, dict):
-            raise ValueError("Die Erfassung ist unvollständig.")
-        value = _clean_text(block.get("value"))
-        allowed = INTERESTS.get(value)
-        details = block.get("level3")
-        if allowed is None or value in seen or not isinstance(details, list) or not details:
-            raise ValueError("Die Erfassung ist unvollständig.")
-        seen.add(value)
-        clean_details = []
-        for detail in details:
-            text = _clean_text(detail)
-            if text not in allowed or text in clean_details:
-                raise ValueError("Die Erfassung ist unvollständig.")
-            clean_details.append(text)
-        level2.append({"value": value, "level3": clean_details})
-
     for key in (
         "started_at",
         "level1_completed_at",
@@ -600,14 +578,16 @@ def _validate_capture(payload):
     ):
         if _clean_text(payload.get(key)) is None:
             raise ValueError("Die Erfassung ist unvollständig.")
-    return level1, level2
+    board_id, level1, level2 = prepare_capture(payload.get("level1"), payload.get("level2"))
+    return board_id, level1, level2
 
 
 @app.post("/api/erfassungen", status_code=201)
 async def create_erfassung(payload: dict):
     try:
-        level1, level2 = _validate_capture(payload)
+        board_id, level1, level2 = _validate_capture(payload)
         erfassung_id, completed_label = save_erfassung(
+            board_id,
             level1,
             level2,
             payload.get("started_at"),
@@ -639,34 +619,7 @@ def _validate_korrektur(payload):
         raise ValueError("Die Korrektur ist unvollständig.")
     if elapsed < 0 or elapsed > 86400:
         raise ValueError("Die Korrektur ist unvollständig.")
-    raw_level1 = payload.get("level1") or []
-    raw_level2 = payload.get("level2") or []
-    if not isinstance(raw_level1, list) or not isinstance(raw_level2, list):
-        raise ValueError("Die Korrektur ist unvollständig.")
-    level1 = []
-    for item in raw_level1:
-        text = _clean_text(item)
-        if text not in LEVEL1_VALUES or text in level1:
-            raise ValueError("Die Korrektur ist unvollständig.")
-        level1.append(text)
-    level2 = []
-    seen = set()
-    for block in raw_level2:
-        if not isinstance(block, dict):
-            raise ValueError("Die Korrektur ist unvollständig.")
-        value = _clean_text(block.get("value"))
-        allowed = INTERESTS.get(value)
-        details = block.get("level3") or []
-        if allowed is None or value in seen or not isinstance(details, list):
-            raise ValueError("Die Korrektur ist unvollständig.")
-        seen.add(value)
-        clean_details = []
-        for detail in details:
-            text = _clean_text(detail)
-            if text not in allowed or text in clean_details:
-                raise ValueError("Die Korrektur ist unvollständig.")
-            clean_details.append(text)
-        level2.append({"value": value, "level3": clean_details})
+    level1, level2 = prepare_korrektur(payload.get("level1") or [], payload.get("level2") or [])
     had_selection = bool(payload.get("had_selection"))
     return from_level, to_level, elapsed, had_selection, level1, level2
 

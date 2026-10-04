@@ -62,8 +62,8 @@
                         Herkunft
                         <select name="herkunft">
                             <option value="">Alle</option>
-                            {% for name in result.herkunft_options %}
-                            <option value="{{ name }}" {% if result.applied_herkunft == name %}selected{% endif %}>{{ name }}</option>
+                            {% for item in result.herkunft_options %}
+                            <option value="{{ item.id }}" {% if result.applied_herkunft == item.id|string %}selected{% endif %}>{{ item.label }}</option>
                             {% endfor %}
                         </select>
                     </label>
@@ -71,8 +71,8 @@
                         Interesse
                         <select name="interesse">
                             <option value="">Alle</option>
-                            {% for name in result.interesse_options %}
-                            <option value="{{ name }}" {% if result.applied_interesse == name %}selected{% endif %}>{{ name }}</option>
+                            {% for item in result.interesse_options %}
+                            <option value="{{ item.id }}" {% if result.applied_interesse == item.id|string %}selected{% endif %}>{{ item.label }}</option>
                             {% endfor %}
                         </select>
                     </label>
@@ -80,8 +80,8 @@
                         Detail
                         <select name="detail">
                             <option value="">Alle</option>
-                            {% for name in result.detail_options %}
-                            <option value="{{ name }}" {% if result.applied_detail == name %}selected{% endif %}>{{ name }}</option>
+                            {% for item in result.detail_options %}
+                            <option value="{{ item.id }}" {% if result.applied_detail == item.id|string %}selected{% endif %}>{{ item.label }}</option>
                             {% endfor %}
                         </select>
                     </label>
