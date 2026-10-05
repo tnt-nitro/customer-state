@@ -137,6 +137,9 @@ CREATE TABLE IF NOT EXISTS board_options (
     label TEXT NOT NULL,
     position INTEGER NOT NULL,
     span INTEGER NOT NULL DEFAULT 1,
+    grid_row INTEGER NOT NULL DEFAULT 1,
+    grid_column INTEGER NOT NULL DEFAULT 1,
+    grid_width INTEGER NOT NULL DEFAULT 1,
     aktiv INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -512,6 +515,47 @@ def _link_corrections(connection, stamp):
         )
 
 
+def _place_default_grid(connection):
+    total, untouched = connection.execute(
+        """
+        SELECT COUNT(*),
+               SUM(CASE WHEN grid_row = 1 AND grid_column = 1 AND grid_width = 1 THEN 1 ELSE 0 END)
+        FROM board_options
+        """
+    ).fetchone()
+    if not total or total != untouched:
+        return
+    level_ids = [row[0] for row in connection.execute("SELECT id FROM board_levels")]
+    for level_id in level_ids:
+        options = connection.execute(
+            """
+            SELECT id, span FROM board_options
+            WHERE level_id = ?
+            ORDER BY position, id
+            """,
+            (level_id,),
+        ).fetchall()
+        column = 1
+        row_number = 1
+        for option_id, span in options:
+            width = 4 if span and span >= 2 else 2
+            if column + width - 1 > 4:
+                row_number += 1
+                column = 1
+            connection.execute(
+                """
+                UPDATE board_options
+                SET grid_row = ?, grid_column = ?, grid_width = ?
+                WHERE id = ?
+                """,
+                (row_number, column, width, option_id),
+            )
+            column += width
+            if column > 4:
+                row_number += 1
+                column = 1
+
+
 def _assert_linked(connection):
     checks = (
         "SELECT COUNT(*) FROM erfassung_herkunft WHERE option_id IS NULL",
@@ -558,3 +602,7 @@ def ensure_master_data(connection):
         link_capture_options(connection, erfassung_id, stamp)
     _link_corrections(connection, stamp)
     _assert_linked(connection)
+    _add_column(connection, "board_options", "grid_row", "INTEGER NOT NULL DEFAULT 1")
+    _add_column(connection, "board_options", "grid_column", "INTEGER NOT NULL DEFAULT 1")
+    _add_column(connection, "board_options", "grid_width", "INTEGER NOT NULL DEFAULT 1")
+    _place_default_grid(connection)

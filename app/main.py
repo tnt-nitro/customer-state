@@ -1,12 +1,28 @@
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.admin_data import (
+    AdminError,
+    create_button,
+    create_employee,
+    list_boards,
+    list_buttons,
+    list_employees,
+    list_levels,
+    preview_cells,
+    reset_pin,
+    shift_button,
+    update_board,
+    update_button,
+    update_employee,
+    update_level,
+)
 from app.database import (
     BERLIN,
     apply_option_filter,
@@ -82,7 +98,7 @@ app.mount("/static", FreshStaticFiles(directory="static"), name="static")
 @app.middleware("http")
 async def fresh_pages(request, call_next):
     response = await call_next(request)
-    if request.url.path in {"/", "/erfassungen", "/auswertung", "/vergleich"}:
+    if request.url.path in {"/", "/erfassungen", "/auswertung", "/vergleich"} or request.url.path.startswith("/admin"):
         response.headers["Cache-Control"] = "no-cache"
     return response
 
@@ -622,6 +638,273 @@ def _validate_korrektur(payload):
     level1, level2 = prepare_korrektur(payload.get("level1") or [], payload.get("level2") or [])
     had_selection = bool(payload.get("had_selection"))
     return from_level, to_level, elapsed, had_selection, level1, level2
+
+
+async def _form(request):
+    parsed = parse_qs((await request.body()).decode(), keep_blank_values=True)
+
+    def one(name, default=""):
+        values = parsed.get(name)
+        if not values:
+            return default
+        return values[-1]
+
+    def many(name):
+        return parsed.get(name, [])
+
+    return one, many
+
+
+def _admin_target(path, **params):
+    clean = {key: value for key, value in params.items() if value not in (None, "")}
+    if not clean:
+        return path
+    return path + "?" + urlencode(clean)
+
+
+def _admin_back(path, **params):
+    return RedirectResponse(_admin_target(path, **params), status_code=303)
+
+
+def _admin_page(request, section, **extra):
+    # Zugriffskontrolle folgt später. /admin ist bis dahin bewusst offen.
+    return templates.TemplateResponse(
+        request,
+        "admin.html",
+        {
+            "active": "admin",
+            "section": section,
+            "boards": extra.pop("boards", list_boards()),
+            "fehler": request.query_params.get("fehler", ""),
+            "hinweis": request.query_params.get("hinweis", ""),
+            **extra,
+        },
+    )
+
+
+def _pick_board(boards, raw):
+    if raw and str(raw).isdigit():
+        number = int(raw)
+        for board in boards:
+            if board["id"] == number:
+                return board
+    return boards[0] if boards else None
+
+
+@app.get("/admin", response_class=HTMLResponse)
+@app.get("/admin/boards", response_class=HTMLResponse)
+async def admin_boards(request: Request):
+    return _admin_page(request, "boards", board=None, level=None)
+
+
+@app.post("/admin/boards/{board_id}")
+async def admin_save_board(board_id: int, request: Request):
+    form, _many = await _form(request)
+    try:
+        update_board(board_id, form("name"), form("position"), form("aktiv"))
+    except AdminError as error:
+        return _admin_back("/admin", fehler=str(error))
+    return _admin_back("/admin", hinweis="Das Board wurde gespeichert.")
+
+
+@app.get("/admin/ebenen", response_class=HTMLResponse)
+async def admin_levels(request: Request):
+    boards = list_boards()
+    board = _pick_board(boards, request.query_params.get("board"))
+    levels = []
+    fehler = request.query_params.get("fehler", "")
+    if board:
+        try:
+            _board, levels = list_levels(board["id"])
+        except AdminError as error:
+            fehler = str(error)
+    return _admin_page(
+        request,
+        "ebenen",
+        boards=boards,
+        board=board,
+        level=None,
+        levels=levels,
+        fehler=fehler,
+    )
+
+
+@app.post("/admin/ebenen/{level_id}")
+async def admin_save_level(level_id: int, request: Request):
+    form, _many = await _form(request)
+    board_id = form("board")
+    try:
+        update_level(level_id, form("title"), form("sort_order"), form("aktiv"))
+    except AdminError as error:
+        return _admin_back("/admin/ebenen", board=board_id, fehler=str(error))
+    return _admin_back("/admin/ebenen", board=board_id, hinweis="Die Ebene wurde gespeichert.")
+
+
+@app.get("/admin/buttons", response_class=HTMLResponse)
+async def admin_buttons(request: Request):
+    boards = list_boards()
+    board = _pick_board(boards, request.query_params.get("board"))
+    levels = []
+    level = None
+    buttons = []
+    parent_choices = []
+    cells = []
+    selected = None
+    fehler = request.query_params.get("fehler", "")
+    if board:
+        try:
+            _board, levels = list_levels(board["id"])
+            raw_level = request.query_params.get("ebene")
+            if raw_level and str(raw_level).isdigit():
+                chosen, buttons, parent_choices = list_buttons(int(raw_level))
+                if chosen["board_id"] == board["id"]:
+                    level = chosen
+                    cells = preview_cells(buttons)
+                    raw_button = request.query_params.get("button")
+                    if raw_button and str(raw_button).isdigit():
+                        number = int(raw_button)
+                        selected = next((item for item in buttons if item["id"] == number), None)
+                else:
+                    buttons = []
+                    parent_choices = []
+        except AdminError as error:
+            fehler = str(error)
+            level = None
+    return _admin_page(
+        request,
+        "buttons",
+        boards=boards,
+        board=board,
+        levels=levels,
+        level=level,
+        buttons=buttons,
+        parent_choices=parent_choices,
+        cells=cells,
+        selected=selected,
+        fehler=fehler,
+    )
+
+
+@app.post("/admin/buttons")
+async def admin_create_button(request: Request):
+    form, many = await _form(request)
+    board_id = form("board")
+    level_id = form("ebene")
+    try:
+        option_id = create_button(
+            int(level_id),
+            form("label"),
+            form("grid_row"),
+            form("grid_column"),
+            form("grid_width"),
+            many("parents"),
+        )
+    except (AdminError, TypeError, ValueError) as error:
+        message = str(error) if isinstance(error, AdminError) else "Der Button konnte nicht angelegt werden."
+        return _admin_back("/admin/buttons", board=board_id, ebene=level_id, fehler=message)
+    return _admin_back(
+        "/admin/buttons",
+        board=board_id,
+        ebene=level_id,
+        button=option_id,
+        hinweis="Der Button wurde angelegt.",
+    )
+
+
+@app.post("/admin/buttons/{option_id}")
+async def admin_save_button(option_id: int, request: Request):
+    form, many = await _form(request)
+    board_id = form("board")
+    level_id = form("ebene")
+    try:
+        update_button(
+            option_id,
+            form("label"),
+            form("position"),
+            form("aktiv"),
+            form("grid_row"),
+            form("grid_column"),
+            form("grid_width"),
+            many("parents"),
+        )
+    except AdminError as error:
+        return _admin_back("/admin/buttons", board=board_id, ebene=level_id, button=option_id, fehler=str(error))
+    return _admin_back(
+        "/admin/buttons",
+        board=board_id,
+        ebene=level_id,
+        button=option_id,
+        hinweis="Der Button wurde gespeichert.",
+    )
+
+
+@app.post("/admin/buttons/{option_id}/schieben")
+async def admin_shift_button(option_id: int, request: Request):
+    form, _many = await _form(request)
+    board_id = form("board")
+    level_id = form("ebene")
+    try:
+        shift_button(option_id, form("richtung"))
+    except AdminError as error:
+        return _admin_back("/admin/buttons", board=board_id, ebene=level_id, button=option_id, fehler=str(error))
+    return _admin_back(
+        "/admin/buttons",
+        board=board_id,
+        ebene=level_id,
+        button=option_id,
+        hinweis="Die Position wurde geändert.",
+    )
+
+
+@app.get("/admin/mitarbeiter", response_class=HTMLResponse)
+async def admin_employees(request: Request):
+    people = list_employees()
+    for person in people:
+        person["board_ids"] = [board["id"] for board in person["boards"]]
+    return _admin_page(
+        request,
+        "mitarbeiter",
+        board=None,
+        level=None,
+        current_employees=[person for person in people if person["status"] != "ausgeschieden"],
+        former_employees=[person for person in people if person["status"] == "ausgeschieden"],
+    )
+
+
+@app.post("/admin/mitarbeiter")
+async def admin_create_employee(request: Request):
+    form, many = await _form(request)
+    try:
+        create_employee(form("name"), form("login_name"), many("boards"), form("is_admin"))
+    except AdminError as error:
+        return _admin_back("/admin/mitarbeiter", fehler=str(error))
+    return _admin_back("/admin/mitarbeiter", hinweis="Der Mitarbeiter wurde angelegt.")
+
+
+@app.post("/admin/mitarbeiter/{employee_id}")
+async def admin_save_employee(employee_id: int, request: Request):
+    form, many = await _form(request)
+    try:
+        update_employee(
+            employee_id,
+            form("name"),
+            form("login_name"),
+            form("status"),
+            form("is_admin"),
+            many("boards"),
+        )
+    except AdminError as error:
+        return _admin_back("/admin/mitarbeiter", fehler=str(error))
+    return _admin_back("/admin/mitarbeiter", hinweis="Der Mitarbeiter wurde gespeichert.")
+
+
+@app.post("/admin/mitarbeiter/{employee_id}/pin")
+async def admin_reset_pin(employee_id: int):
+    try:
+        reset_pin(employee_id)
+    except AdminError as error:
+        return _admin_back("/admin/mitarbeiter", fehler=str(error))
+    return _admin_back("/admin/mitarbeiter", hinweis="Der PIN wurde zurückgesetzt.")
 
 
 @app.post("/api/korrekturen", status_code=201)

@@ -54,9 +54,11 @@
         (options || []).forEach(function (option) {
             var button = document.createElement("button");
             button.type = "button";
-            button.className = "choice" + (option.span > 1 ? " choice-wide" : "");
+            button.className = "choice";
             button.setAttribute("aria-pressed", "false");
             button.setAttribute("data-option-id", String(option.id));
+            button.style.gridRow = String(option.grid_row);
+            button.style.gridColumn = option.grid_column + " / span " + option.grid_width;
             button.textContent = option.label;
             container.appendChild(button);
         });
@@ -354,10 +356,12 @@
             labels.forEach(function (label) {
                 var button = document.createElement("button");
                 button.type = "button";
-                button.className = "choice" + (label.span > 1 ? " choice-wide" : "");
+                button.className = "choice";
                 var active = kept[option.label] && kept[option.label].indexOf(label.label) !== -1;
                 button.setAttribute("aria-pressed", active ? "true" : "false");
                 button.setAttribute("data-option-id", String(label.id));
+                button.style.gridRow = String(label.grid_row);
+                button.style.gridColumn = label.grid_column + " / span " + label.grid_width;
                 button.textContent = label.label;
                 button.addEventListener("click", function () {
                     if (!level3StartedAt) {

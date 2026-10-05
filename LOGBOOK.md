@@ -433,3 +433,27 @@ Migration beim Start, wiederholbar. Ein zweiter Start legt nichts doppelt an und
 Getestet und danach entfernt: aktive Verkaufsoption „Testoption“, eine Erfassung damit, Sichtbarkeit in Erfassung, Erfassungen und Auswertung, danach deaktiviert und aus der neuen Erfassung verschwunden, historisch weiter sichtbar. Anschließend nur diese Erfassung und diese Option gelöscht. Testmitarbeiter mit Verkauf und Werkstatt, ohne PIN, danach nur dieser Mitarbeiter gelöscht. Bestand danach wieder 3.000 / 2.975 / 25.
 
 `GET /`, `/erfassungen`, `/auswertung` und `/vergleich` liefern HTTP 200. Im Browser: Mehrfachauswahl, Weiter, getrennte Detailgruppen, Speichern wird erst mit einem Detail je Interesse aktiv. Freitag, 23.05.2025 bleibt bei 25 Erfassungen. Filter Herkunft Google zählt 692. Dienst neu gestartet.
+
+### 2026-10-05 09:38 (UTC+2)
+
+Adminoberfläche für die Konfiguration am Desktop. Neu: `app/admin_data.py`, `templates/admin.html`. Geändert: `app/catalog.py`, `app/database.py`, `app/main.py`, `static/selection.js`, `static/style.css`, `templates/header.html`. Kein Commit, kein Push. Die Datenbankdatei bleibt außerhalb von Git.
+
+`GET /admin` zeigt Boards, Ebenen, Buttons und Mitarbeiter. Eine Anmeldung ist bewusst noch nicht eingebaut und im Code sowie auf der Seite als später markiert. Es gibt keine Löschrouten. Boards, Ebenen, Buttons und Mitarbeiter bleiben in der Datenbank und werden nur über aktiv bzw. den Mitarbeiterstatus aus dem Alltag genommen.
+
+Boards: sichtbarer Name, Sortierung und aktiv. Der Schlüssel bleibt fest. Ebenen: sichtbare Überschrift, Sortierung und aktiv. Die Position 1, 2 oder 3 bleibt die Ebene. Die Erfassung liest die Überschriften daraus. Buttons: Bezeichnung, logische Sortierung, aktiv, Rasterzeile, Rasterspalte und Breite. Die Sortierung und die Rasterposition sind getrennt. Ein neuer Button bekommt ID und Schlüssel automatisch. Umbenennen ändert den Schlüssel nicht.
+
+Jede Ebene hat ein Raster mit vier Spalten und beliebig vielen Zeilen. Breite 1 bis 4, ohne über die vierte Spalte hinaus. Leerplätze bleiben leer. Zwei aktive Buttons derselben Ebene dürfen dieselben Zellen nicht belegen. Ein breiter Button belegt mehrere Zellen. Inaktive Buttons belegen keine Zellen. Die Erfassung setzt die Buttons mit Zeile und Breite in dieses Raster. Das bisherige Verkaufslayout liegt darin als Zweierpaare, Stammkunde über alle vier Spalten.
+
+Ebene-3-Buttons werden über `board_option_parents` einem oder mehreren Ebene-2-Buttons zugeordnet. Mitarbeiter: Anzeigename, optionaler Loginname, ein oder mehrere Boards, Admin ja oder nein, Status aktiv, gesperrt oder ausgeschieden. Ausgeschiedene stehen getrennt. Der PIN wird nicht vergeben und der Hash nie angezeigt. „PIN zurücksetzen“ setzt nur `pin_hash` auf leer, auch wenn noch keiner hinterlegt ist.
+
+Geprüft und danach zurückgesetzt: Layouts 3+1, 1 plus Leerplatz plus 2, 2+2, 1+1+1+1, Breite 4 und Leerplatz plus 1 plus Leerplatz plus 1, jeweils in der Adminansicht, in der Speicherung und in der Erfassung. Kollision Zeile 1 Spalte 1 Breite 3 gegen Spalte 3 Breite 2 abgelehnt, Bestand unverändert. Überstand über Spalte 4 abgelehnt. Temporärer Button „Testbutton Admin“ ohne Codeänderung in Admin, Erfassung, Speicherung, Erfassungen, Auswertung und Vergleich. Nach dem Deaktivieren weg aus der neuen Erfassung, historisch weiter sichtbar. Temporäre Ebene-3-Zuordnung an zwei Interessen, danach geändert. Testmitarbeiter mit Verkauf und Werkstatt, Status aktiv, gesperrt, ausgeschieden und zurück, Admin an und aus, PIN-Reset bei leerem Hash ohne Fehler. Anschließend nur die Testdaten entfernt.
+
+Danach wieder 3.000 Erfassungen, 2.975 Demo, 25 echt, 17 Zeitmessungen, 5 Korrekturen, keine Mitarbeiter, 53 Optionen, Stammkunde wieder Zeile 4 Breite 4. `foreign_key_check` leer. `GET /`, `/erfassungen`, `/auswertung`, `/vergleich` und `/admin` liefern HTTP 200. Im Browser: Vierspaltenraster, Mehrfachauswahl und Weiter. Die letzte echte Erfassung bleibt Samstag 23:11:42 vom 03.10.2026. Dienst neu gestartet.
+
+### 2026-10-05 21:05 (UTC+2)
+
+Buttonverwaltung auf Einzel-Editor umgestellt. Geändert: `templates/admin.html`, `app/main.py`, `static/style.css`. Kein Commit, kein Push. Schema, Rastermodell und Validierung bleiben.
+
+Unter `/admin/buttons` ist das Vierspaltenraster das Auswahlwerkzeug. Ein Klick auf einen Button öffnet genau einen Editor mit Bezeichnung, Sortierung, Zeile, Spalte, Breite, aktiv und dem festen Schlüssel. Hoch, Runter, Links und Rechts wirken nur auf diese Auswahl. Nach Speichern oder Bewegung bleibt derselbe Button ausgewählt, das Raster zeigt die neue Position. Ohne Auswahl steht „Button im Raster auswählen.“ Der Bereich zum Anlegen bleibt darunter. Inaktive Buttons sind über eine kurze Liste wieder erreichbar. Auf Ebene 3 bleibt die Zuordnung zu einer oder mehreren Ebene-2-Optionen im Editor und beim Anlegen erhalten.
+
+Geprüft: Verkauf Ebene 1 ohne und mit Auswahl, Wechsel von Empfehlung zu KI, Breite testweise geändert und zurückgesetzt, Bewegung und abgelehnte Bewegung, Ebene 3 mit Elternzuordnung. Ein temporärer Button wurde direkt ausgewählt und wieder entfernt. Bestand danach 3.000 / 2.975 / 25. `GET /`, `/erfassungen`, `/auswertung`, `/vergleich`, `/admin` und `/admin/buttons` liefern HTTP 200. Dienst neu gestartet.

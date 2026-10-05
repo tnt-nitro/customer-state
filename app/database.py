@@ -642,17 +642,26 @@ def _option_number(value):
 def _active_options(connection, board_key, position):
     rows = connection.execute(
         """
-        SELECT o.id, o.key, o.label, o.position, o.span
+        SELECT o.id, o.key, o.label, o.position, o.span, o.grid_row, o.grid_column, o.grid_width
         FROM board_options AS o
         JOIN board_levels AS l ON l.id = o.level_id
         JOIN boards AS b ON b.id = l.board_id
         WHERE b.key = ? AND l.position = ? AND o.aktiv = 1 AND l.aktiv = 1 AND b.aktiv = 1
-        ORDER BY o.position, o.id
+        ORDER BY o.grid_row, o.grid_column, o.position, o.id
         """,
         (board_key, position),
     ).fetchall()
     return [
-        {"id": row[0], "key": row[1], "label": row[2], "position": row[3], "span": row[4]}
+        {
+            "id": row[0],
+            "key": row[1],
+            "label": row[2],
+            "position": row[3],
+            "span": row[4],
+            "grid_row": row[5],
+            "grid_column": row[6],
+            "grid_width": row[7],
+        }
         for row in rows
     ]
 
@@ -660,17 +669,27 @@ def _active_options(connection, board_key, position):
 def _active_children(connection, parent_id):
     rows = connection.execute(
         """
-        SELECT child.id, child.key, child.label, link.position, child.span
+        SELECT child.id, child.key, child.label, link.position, child.span,
+               child.grid_row, child.grid_column, child.grid_width
         FROM board_option_parents AS link
         JOIN board_options AS child ON child.id = link.child_option_id
         JOIN board_options AS parent ON parent.id = link.parent_option_id
         WHERE link.parent_option_id = ? AND child.aktiv = 1 AND parent.aktiv = 1
-        ORDER BY link.position, child.id
+        ORDER BY child.grid_row, child.grid_column, link.position, child.id
         """,
         (parent_id,),
     ).fetchall()
     return [
-        {"id": row[0], "key": row[1], "label": row[2], "position": row[3], "span": row[4]}
+        {
+            "id": row[0],
+            "key": row[1],
+            "label": row[2],
+            "position": row[3],
+            "span": row[4],
+            "grid_row": row[5],
+            "grid_column": row[6],
+            "grid_width": row[7],
+        }
         for row in rows
     ]
 

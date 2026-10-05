@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration – Customer State</title>
+    <link rel="stylesheet" href="{{ asset('style.css') }}">
+</head>
+<body>
+    <div class="page admin">
+        {% include "header.html" %}
+        <main>
+            <h2>Administration</h2>
+            {# Zugriffskontrolle folgt später. Diese Seite ist bewusst noch nicht abgesperrt. #}
+            <p class="admin-note">Diese Oberfläche dient der Konfiguration am Desktop. Eine Anmeldung ist noch nicht eingebaut und folgt später.</p>
+            <nav class="admin-nav" aria-label="Administration">
+                <a href="/admin" {% if section == "boards" %}aria-current="page"{% endif %}>Boards</a>
+                <a href="/admin/ebenen{% if board %}?board={{ board.id }}{% endif %}" {% if section == "ebenen" %}aria-current="page"{% endif %}>Ebenen</a>
+                <a href="/admin/buttons{% if board %}?board={{ board.id }}{% if level %}&amp;ebene={{ level.id }}{% endif %}{% endif %}" {% if section == "buttons" %}aria-current="page"{% endif %}>Buttons</a>
+                <a href="/admin/mitarbeiter" {% if section == "mitarbeiter" %}aria-current="page"{% endif %}>Mitarbeiter</a>
+            </nav>
+            {% if fehler %}<p class="admin-error" role="alert">{{ fehler }}</p>{% endif %}
+            {% if hinweis %}<p class="admin-ok" role="status">{{ hinweis }}</p>{% endif %}
+
+            {% if section == "boards" %}
+            <section>
+                <h3>Boards</h3>
+                <p>Der technische Schlüssel bleibt fest. Ein Board wird nicht gelöscht, sondern deaktiviert.</p>
+                {% for item in boards %}
+                <form class="admin-card" method="post" action="/admin/boards/{{ item.id }}">
+                    <p class="admin-key">Schlüssel: {{ item.key }}</p>
+                    <div class="admin-fields">
+                        <label>Sichtbarer Name
+                            <input name="name" value="{{ item.name }}" required>
+                        </label>
+                        <label>Sortierung
+                            <input name="position" type="number" min="1" value="{{ item.position }}" required>
+                        </label>
+                        <label class="admin-check">
+                            <input name="aktiv" type="checkbox" value="1" {% if item.aktiv %}checked{% endif %}>
+                            aktiv
+                        </label>
+                        <button type="submit">Speichern</button>
+                    </div>
+                </form>
+                {% endfor %}
+            </section>
+            {% endif %}
+
+            {% if section == "ebenen" %}
+            <section>
+                <h3>Ebenen</h3>
+                <form class="admin-switch" method="get" action="/admin/ebenen">
+                    <label>Board
+                        <select name="board" onchange="this.form.submit()">
+                            {% for item in boards %}
+                            <option value="{{ item.id }}" {% if board and item.id == board.id %}selected{% endif %}>{{ item.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <button type="submit">Anzeigen</button>
+                </form>
+                {% if board %}
+                <p>Die Position 1, 2 oder 3 bleibt die feste Ebene. Geändert wird die sichtbare Überschrift.</p>
+                {% for item in levels %}
+                <form class="admin-card" method="post" action="/admin/ebenen/{{ item.id }}">
+                    <input type="hidden" name="board" value="{{ board.id }}">
+                    <p class="admin-key">Ebene {{ item.position }}</p>
+                    <div class="admin-fields">
+                        <label>Überschrift
+                            <input name="title" value="{{ item.title }}" required>
+                        </label>
+                        <label>Sortierung
+                            <input name="sort_order" type="number" min="1" value="{{ item.sort_order }}" required>
+                        </label>
+                        <label class="admin-check">
+                            <input name="aktiv" type="checkbox" value="1" {% if item.aktiv %}checked{% endif %}>
+                            aktiv
+                        </label>
+                        <button type="submit">Speichern</button>
+                    </div>
+                </form>
+                {% endfor %}
+                {% endif %}
+            </section>
+            {% endif %}
+
+            {% if section == "buttons" %}
+            <section>
+                <h3>Buttons</h3>
+                <form class="admin-switch" method="get" action="/admin/buttons">
+                    <label>Board
+                        <select name="board" onchange="this.form.submit()">
+                            {% for item in boards %}
+                            <option value="{{ item.id }}" {% if board and item.id == board.id %}selected{% endif %}>{{ item.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>Ebene
+                        <select name="ebene" onchange="this.form.submit()">
+                            <option value="">Bitte wählen</option>
+                            {% for item in levels %}
+                            <option value="{{ item.id }}" {% if level and item.id == level.id %}selected{% endif %}>{{ item.position }}. {{ item.title }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <button type="submit">Anzeigen</button>
+                </form>
+                {% if level %}
+                <p>Die Sortierung ist die logische Reihenfolge. Zeile, Spalte und Breite bestimmen nur das Raster. Leerplätze bleiben leer und werden nicht aufgefüllt.</p>
+                <div class="admin-raster" aria-label="Vierspaltenraster">
+                    <span class="admin-colhead" style="grid-row: 1; grid-column: 1;">1</span>
+                    <span class="admin-colhead" style="grid-row: 1; grid-column: 2;">2</span>
+                    <span class="admin-colhead" style="grid-row: 1; grid-column: 3;">3</span>
+                    <span class="admin-colhead" style="grid-row: 1; grid-column: 4;">4</span>
+                    {% for cell in cells %}
+                        {% if cell.kind == "button" %}
+                        <a class="admin-cell is-button{% if selected and selected.id == cell.button.id %} is-selected{% endif %}" href="/admin/buttons?board={{ board.id }}&amp;ebene={{ level.id }}&amp;button={{ cell.button.id }}" style="grid-row: {{ cell.button.grid_row + 1 }}; grid-column: {{ cell.button.grid_column }} / span {{ cell.button.grid_width }};" {% if selected and selected.id == cell.button.id %}aria-current="true"{% endif %}>
+                            {{ cell.button.label }}
+                            <small>{{ cell.button.grid_width }} Spalte{% if cell.button.grid_width != 1 %}n{% endif %}{% if selected and selected.id == cell.button.id %} · ausgewählt{% endif %}</small>
+                        </a>
+                        {% else %}
+                        <div class="admin-cell is-empty" style="grid-row: {{ cell.row + 1 }}; grid-column: {{ cell.column }};">leer</div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% if selected %}
+                <form class="admin-card" method="post" action="/admin/buttons/{{ selected.id }}">
+                    <input type="hidden" name="board" value="{{ board.id }}">
+                    <input type="hidden" name="ebene" value="{{ level.id }}">
+                    <p class="admin-key">Schlüssel: {{ selected.key }}{% if not selected.aktiv %} · inaktiv{% endif %}</p>
+                    <div class="admin-fields">
+                        <label>Bezeichnung
+                            <input name="label" value="{{ selected.label }}" required>
+                        </label>
+                        <label>Sortierung
+                            <input name="position" type="number" min="1" value="{{ selected.position }}" required>
+                        </label>
+                        <label>Zeile
+                            <input name="grid_row" type="number" min="1" value="{{ selected.grid_row }}" required>
+                        </label>
+                        <label>Spalte
+                            <input name="grid_column" type="number" min="1" max="4" value="{{ selected.grid_column }}" required>
+                        </label>
+                        <label>Breite
+                            <select name="grid_width">
+                                {% for width in (1, 2, 3, 4) %}
+                                <option value="{{ width }}" {% if selected.grid_width == width %}selected{% endif %}>{{ width }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label class="admin-check">
+                            <input name="aktiv" type="checkbox" value="1" {% if selected.aktiv %}checked{% endif %}>
+                            aktiv
+                        </label>
+                        <button type="submit">Speichern</button>
+                    </div>
+                    {% if level.position == 3 %}
+                    <fieldset>
+                        <legend>Gehört zu Ebene 2</legend>
+                        {% for parent in selected.parents %}
+                        <label class="admin-check">
+                            <input type="checkbox" name="parents" value="{{ parent.id }}" {% if parent.selected %}checked{% endif %}>
+                            {{ parent.label }}{% if not parent.aktiv %} (inaktiv){% endif %}
+                        </label>
+                        {% endfor %}
+                    </fieldset>
+                    {% endif %}
+                </form>
+                <form class="admin-move" method="post" action="/admin/buttons/{{ selected.id }}/schieben">
+                    <input type="hidden" name="board" value="{{ board.id }}">
+                    <input type="hidden" name="ebene" value="{{ level.id }}">
+                    <button type="submit" name="richtung" value="hoch">Hoch</button>
+                    <button type="submit" name="richtung" value="runter">Runter</button>
+                    <button type="submit" name="richtung" value="links">Links</button>
+                    <button type="submit" name="richtung" value="rechts">Rechts</button>
+                </form>
+                {% else %}
+                <p class="admin-note">Button im Raster auswählen.</p>
+                {% endif %}
+                {% set inactive = buttons | rejectattr("aktiv") | list %}
+                {% if inactive %}
+                <p class="admin-inactive">Inaktiv:
+                    {% for item in inactive %}
+                    <a href="/admin/buttons?board={{ board.id }}&amp;ebene={{ level.id }}&amp;button={{ item.id }}" {% if selected and selected.id == item.id %}aria-current="true"{% endif %}>{{ item.label }}</a>
+                    {% endfor %}
+                </p>
+                {% endif %}
+                <form class="admin-card" method="post" action="/admin/buttons">
+                    <h3>Neuen Button anlegen</h3>
+                    <input type="hidden" name="board" value="{{ board.id }}">
+                    <input type="hidden" name="ebene" value="{{ level.id }}">
+                    <div class="admin-fields">
+                        <label>Bezeichnung
+                            <input name="label" required>
+                        </label>
+                        <label>Zeile
+                            <input name="grid_row" type="number" min="1" value="1" required>
+                        </label>
+                        <label>Spalte
+                            <input name="grid_column" type="number" min="1" max="4" value="1" required>
+                        </label>
+                        <label>Breite
+                            <select name="grid_width">
+                                <option value="1">1</option>
+                                <option value="2" selected>2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                            </select>
+                        </label>
+                        <button type="submit">Anlegen</button>
+                    </div>
+                    {% if level.position == 3 %}
+                    <fieldset>
+                        <legend>Gehört zu Ebene 2</legend>
+                        {% for parent in parent_choices %}
+                        <label class="admin-check">
+                            <input type="checkbox" name="parents" value="{{ parent.id }}">
+                            {{ parent.label }}{% if not parent.aktiv %} (inaktiv){% endif %}
+                        </label>
+                        {% endfor %}
+                    </fieldset>
+                    {% endif %}
+                </form>
+                {% endif %}
+            </section>
+            {% endif %}
+
+            {% if section == "mitarbeiter" %}
+            <section>
+                <h3>Mitarbeiter</h3>
+                <p>Ein Mitarbeiter wird nicht gelöscht. Der PIN wird hier nicht vergeben und nie angezeigt.</p>
+                <form class="admin-card" method="post" action="/admin/mitarbeiter">
+                    <h3>Neuen Mitarbeiter anlegen</h3>
+                    <div class="admin-fields">
+                        <label>Anzeigename
+                            <input name="name" required>
+                        </label>
+                        <label>Loginname
+                            <input name="login_name">
+                        </label>
+                        <label class="admin-check">
+                            <input name="is_admin" type="checkbox" value="1">
+                            Admin
+                        </label>
+                        <button type="submit">Anlegen</button>
+                    </div>
+                    <fieldset>
+                        <legend>Boards</legend>
+                        {% for item in boards %}
+                        <label class="admin-check">
+                            <input type="checkbox" name="boards" value="{{ item.id }}">
+                            {{ item.name }}
+                        </label>
+                        {% endfor %}
+                    </fieldset>
+                </form>
+                {% for group_name, group in (("Aktive und gesperrte Mitarbeiter", current_employees), ("Ausgeschieden", former_employees)) %}
+                <h3>{{ group_name }}</h3>
+                {% if not group %}<p>Keine Einträge.</p>{% endif %}
+                {% for person in group %}
+                <form class="admin-card" method="post" action="/admin/mitarbeiter/{{ person.id }}">
+                    <p class="admin-key">PIN: {% if person.pin_set %}eingerichtet{% else %}nicht eingerichtet{% endif %}</p>
+                    <div class="admin-fields">
+                        <label>Anzeigename
+                            <input name="name" value="{{ person.name }}" required>
+                        </label>
+                        <label>Loginname
+                            <input name="login_name" value="{{ person.login_name }}">
+                        </label>
+                        <label>Status
+                            <select name="status">
+                                {% for status in ("aktiv", "gesperrt", "ausgeschieden") %}
+                                <option value="{{ status }}" {% if person.status == status %}selected{% endif %}>{{ status }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label class="admin-check">
+                            <input name="is_admin" type="checkbox" value="1" {% if person.is_admin %}checked{% endif %}>
+                            Admin
+                        </label>
+                        <button type="submit">Speichern</button>
+                    </div>
+                    <fieldset>
+                        <legend>Boards</legend>
+                        {% for item in boards %}
+                        <label class="admin-check">
+                            <input type="checkbox" name="boards" value="{{ item.id }}" {% if item.id in person.board_ids %}checked{% endif %}>
+                            {{ item.name }}
+                        </label>
+                        {% endfor %}
+                    </fieldset>
+                </form>
+                <form class="admin-move" method="post" action="/admin/mitarbeiter/{{ person.id }}/pin">
+                    <button type="submit" {% if not person.pin_set %}disabled{% endif %}>PIN zurücksetzen</button>
+                    {% if not person.pin_set %}<span>Es ist kein PIN hinterlegt.</span>{% endif %}
+                </form>
+                {% endfor %}
+                {% endfor %}
+            </section>
+            {% endif %}
+        </main>
+    </div>
+</body>
+</html>
