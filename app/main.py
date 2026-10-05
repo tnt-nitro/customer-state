@@ -3,10 +3,11 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlencode
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app import auth
 from app.admin_data import (
     AdminError,
     create_button,
@@ -95,24 +96,181 @@ templates.env.globals["asset"] = asset
 app.mount("/static", FreshStaticFiles(directory="static"), name="static")
 
 
+def render(request, name, context):
+    user = getattr(request.state, "user", None)
+    payload = {"user": user, "show_admin": bool(user and user["is_admin"])}
+    payload.update(context)
+    return templates.TemplateResponse(request, name, payload)
+
+
+def _stamp_session(response, token):
+    response.set_cookie(
+        auth.COOKIE,
+        token,
+        httponly=True,
+        samesite="lax",
+        path="/",
+        max_age=auth.seconds_until_day_end(datetime.now(BERLIN)),
+    )
+    return response
+
+
+def _clear_session_cookie(response):
+    response.delete_cookie(auth.COOKIE, path="/")
+    return response
+
+
+def _data_scope(user):
+    if user["is_admin"]:
+        return None
+    return [board["id"] for board in auth.allowed_boards(user["id"])]
+
+
 @app.middleware("http")
 async def fresh_pages(request, call_next):
     response = await call_next(request)
-    if request.url.path in {"/", "/erfassungen", "/auswertung", "/vergleich"} or request.url.path.startswith("/admin"):
+    if request.url.path in {"/", "/erfassungen", "/auswertung", "/vergleich", "/login"} or request.url.path.startswith("/admin"):
         response.headers["Cache-Control"] = "no-cache"
     return response
 
 
+@app.middleware("http")
+async def require_login(request, call_next):
+    path = request.url.path
+    now = datetime.now(BERLIN)
+    token = request.cookies.get(auth.COOKIE)
+    user = auth.session_user(token, now) if token else None
+    request.state.user = user
+    public = path.startswith("/static") or path == "/login" or path.startswith("/login/")
+    if path == "/logout":
+        return await call_next(request)
+    if not public and user is None:
+        if path.startswith("/api/"):
+            response = JSONResponse({"detail": "Anmeldung erforderlich."}, status_code=401)
+        else:
+            response = RedirectResponse("/login", status_code=303)
+        if token:
+            auth.drop_session(token)
+            _clear_session_cookie(response)
+        return response
+    if path.startswith("/admin") and (user is None or not user["is_admin"]):
+        return HTMLResponse("Kein Zugriff auf die Administration.", status_code=403)
+    return await call_next(request)
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    if request.state.user:
+        return RedirectResponse("/", status_code=303)
+    mitarbeiter = request.query_params.get("mitarbeiter")
+    person = None
+    fehler = request.query_params.get("fehler", "")
+    if mitarbeiter and mitarbeiter.isdigit():
+        person = auth.employee_record(int(mitarbeiter))
+        if person is None or person["status"] != "aktiv":
+            person = None
+            fehler = fehler or "Anmeldung nicht möglich."
+        else:
+            person.pop("pin_hash", None)
+    return render(
+        request,
+        "login.html",
+        {"people": auth.active_employees(), "person": person, "fehler": fehler},
+    )
+
+
+@app.post("/login/auswahl")
+async def login_choose(request: Request):
+    form, _many = await _form(request)
+    person = auth.employee_record(form("mitarbeiter"))
+    if person is None or person["status"] != "aktiv":
+        return RedirectResponse("/login?" + urlencode({"fehler": "Anmeldung nicht möglich."}), status_code=303)
+    return RedirectResponse(f"/login?mitarbeiter={person['id']}", status_code=303)
+
+
+@app.post("/login/pin")
+async def login_pin(request: Request):
+    form, _many = await _form(request)
+    now = datetime.now(BERLIN)
+    person = auth.employee_record(form("mitarbeiter"))
+    if person is None or person["status"] != "aktiv":
+        return RedirectResponse("/login?" + urlencode({"fehler": "Anmeldung nicht möglich."}), status_code=303)
+    target = "/login?" + urlencode({"mitarbeiter": person["id"]})
+
+    def deny(message):
+        return RedirectResponse(target + "&" + urlencode({"fehler": message}), status_code=303)
+
+    if auth.pin_locked(person["id"], now):
+        return deny("Bitte einen Moment warten.")
+    pin = form("pin")
+    repeat = form("pin_wiederholen")
+    if not person["pin_set"]:
+        if not auth.pin_valid(pin) or pin != repeat:
+            return deny("Der PIN muss aus vier Ziffern bestehen und beide Eingaben müssen übereinstimmen.")
+        try:
+            auth.set_pin(person["id"], pin)
+        except ValueError:
+            return deny("Anmeldung nicht möglich.")
+    else:
+        if not auth.pin_valid(pin) or not auth.pin_matches(pin, person["pin_hash"]):
+            auth.note_pin_failure(person["id"], now)
+            if auth.pin_locked(person["id"], now):
+                return deny("Bitte einen Moment warten.")
+            return deny("Der PIN ist nicht korrekt.")
+    auth.clear_pin_failures(person["id"])
+    token = auth.open_session(person["id"], now)
+    return _stamp_session(RedirectResponse("/", status_code=303), token)
+
+
+@app.post("/logout")
+async def logout(request: Request):
+    auth.drop_session(request.cookies.get(auth.COOKIE))
+    return _clear_session_cookie(RedirectResponse("/login", status_code=303))
+
+
+def _catalog_ready(catalog):
+    return any(level.get("options") for level in catalog.get("levels") or [])
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse(
+    user = request.state.user
+    boards = auth.allowed_boards(user["id"])
+    if not boards:
+        return render(
+            request,
+            "access.html",
+            {"active": "erfassung", "mode": "keine", "boards": []},
+        )
+    requested = (request.query_params.get("board") or "").strip()
+    if len(boards) == 1 and not requested:
+        chosen = boards[0]
+    else:
+        chosen = next((board for board in boards if board["key"] == requested), None)
+        if requested and chosen is None:
+            return HTMLResponse("Dieses Board ist nicht freigegeben.", status_code=403)
+        if chosen is None:
+            return render(
+                request,
+                "access.html",
+                {"active": "erfassung", "mode": "auswahl", "boards": boards},
+            )
+    catalog = capture_catalog(chosen["key"])
+    if not _catalog_ready(catalog):
+        return render(
+            request,
+            "access.html",
+            {"active": "erfassung", "mode": "leer", "boards": boards, "board": chosen},
+        )
+    last_capture = latest_real_capture_label([chosen["id"]])
+    return render(
         request,
         "index.html",
         {
             "active": "erfassung",
-            "last_capture": latest_real_capture_label(),
-            "last_capture_saved": bool(latest_real_capture_label()),
-            "catalog": capture_catalog("verkauf"),
+            "last_capture": last_capture,
+            "last_capture_saved": bool(last_capture),
+            "catalog": catalog,
         },
     )
 
@@ -337,6 +495,7 @@ async def auswertung(request: Request):
         filters["detail"],
         mark_start=mark_start,
         mark_end=mark_end,
+        board_ids=_data_scope(request.state.user),
         stufen=filters["stufen"],
         wochentage=filters["wochentage"],
     )
@@ -347,7 +506,7 @@ async def auswertung(request: Request):
         ignored = True
     if filters["detail"] and not result["applied_detail"]:
         ignored = True
-    return templates.TemplateResponse(
+    return render(
         request,
         "auswertung.html",
         {
@@ -468,7 +627,8 @@ async def vergleich(request: Request):
     if art not in {value for value, _label in ARTS}:
         art = "tag"
         ignored = True
-    herkunft_options, interesse_options = filter_names(modus)
+    scope = _data_scope(request.state.user)
+    herkunft_options, interesse_options = filter_names(modus, scope)
     herkunft, invalid_herkunft = apply_option_filter(
         herkunft_options, (params.get("herkunft") or "").strip()
     )
@@ -492,7 +652,7 @@ async def vergleich(request: Request):
         links, rechts = default_links, default_rechts
         left_period = resolve_period(art, links)
         right_period = resolve_period(art, rechts)
-    report = compare_periods(modus, herkunft, interesse, left_period, right_period, art)
+    report = compare_periods(modus, herkunft, interesse, left_period, right_period, art, scope)
     base = {"modus": modus}
     if herkunft:
         base["herkunft"] = herkunft
@@ -501,7 +661,7 @@ async def vergleich(request: Request):
     _bind_heatmap(report["left"]["calendar"], "links", art, links, rechts, base)
     _bind_heatmap(report["right"]["calendar"], "rechts", art, links, rechts, base)
     choices = comparison_choices()
-    return templates.TemplateResponse(
+    return render(
         request,
         "vergleich.html",
         {
@@ -544,7 +704,8 @@ async def erfassungen(request: Request):
             selected = date(year, 12, 31) if year != today.year else today
         else:
             selected = today
-    board = erfassungen_board(selected)
+    scope = _data_scope(request.state.user)
+    board = erfassungen_board(selected, scope)
     if request.query_params.get("jahr") and not request.query_params.get("tag"):
         year = selected.year
         counted = [
@@ -555,8 +716,8 @@ async def erfassungen(request: Request):
         ]
         if counted and selected.isoformat() not in {day["date"] for day in counted}:
             selected = date.fromisoformat(counted[-1]["date"])
-            board = erfassungen_board(selected)
-    return templates.TemplateResponse(
+            board = erfassungen_board(selected, scope)
+    return render(
         request,
         "erfassungen.html",
         {
@@ -582,7 +743,15 @@ def _clean_text(value):
     return text
 
 
-def _validate_capture(payload):
+def _authorized_board(user, payload):
+    board_key = payload.get("board") if isinstance(payload, dict) else None
+    allowed = {board["key"] for board in auth.allowed_boards(user["id"])}
+    if not isinstance(board_key, str) or board_key not in allowed:
+        raise HTTPException(status_code=403, detail="Dieses Board ist nicht freigegeben.")
+    return board_key
+
+
+def _validate_capture(payload, board_key):
     if not isinstance(payload, dict):
         raise ValueError("Die Erfassung ist unvollständig.")
     for key in (
@@ -594,14 +763,15 @@ def _validate_capture(payload):
     ):
         if _clean_text(payload.get(key)) is None:
             raise ValueError("Die Erfassung ist unvollständig.")
-    board_id, level1, level2 = prepare_capture(payload.get("level1"), payload.get("level2"))
+    board_id, level1, level2 = prepare_capture(payload.get("level1"), payload.get("level2"), board_key)
     return board_id, level1, level2
 
 
 @app.post("/api/erfassungen", status_code=201)
-async def create_erfassung(payload: dict):
+async def create_erfassung(payload: dict, request: Request):
+    board_key = _authorized_board(request.state.user, payload)
     try:
-        board_id, level1, level2 = _validate_capture(payload)
+        board_id, level1, level2 = _validate_capture(payload, board_key)
         erfassung_id, completed_label = save_erfassung(
             board_id,
             level1,
@@ -635,7 +805,11 @@ def _validate_korrektur(payload):
         raise ValueError("Die Korrektur ist unvollständig.")
     if elapsed < 0 or elapsed > 86400:
         raise ValueError("Die Korrektur ist unvollständig.")
-    level1, level2 = prepare_korrektur(payload.get("level1") or [], payload.get("level2") or [])
+    level1, level2 = prepare_korrektur(
+        payload.get("level1") or [],
+        payload.get("level2") or [],
+        payload.get("board") or "",
+    )
     had_selection = bool(payload.get("had_selection"))
     return from_level, to_level, elapsed, had_selection, level1, level2
 
@@ -667,8 +841,8 @@ def _admin_back(path, **params):
 
 
 def _admin_page(request, section, **extra):
-    # Zugriffskontrolle folgt später. /admin ist bis dahin bewusst offen.
-    return templates.TemplateResponse(
+    # Zugriff nur für angemeldete Admins. Die Middleware prüft is_admin erneut.
+    return render(
         request,
         "admin.html",
         {
@@ -908,7 +1082,8 @@ async def admin_reset_pin(employee_id: int):
 
 
 @app.post("/api/korrekturen", status_code=201)
-async def create_korrektur(payload: dict):
+async def create_korrektur(payload: dict, request: Request):
+    _authorized_board(request.state.user, payload)
     try:
         from_level, to_level, elapsed, had_selection, level1, level2 = _validate_korrektur(payload)
         korrektur_id = save_korrektur(from_level, to_level, elapsed, had_selection, level1, level2)

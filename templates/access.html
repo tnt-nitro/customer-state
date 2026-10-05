@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer State</title>
+    <link rel="stylesheet" href="{{ asset('style.css') }}">
+</head>
+<body>
+    <div class="page login">
+        {% include "header.html" %}
+        <main>
+            {% if mode == "auswahl" %}
+            <h2>Was möchtest du erfassen?</h2>
+            <div class="login-people">
+                {% for item in boards %}
+                <a class="login-choice" href="/?board={{ item.key }}">{{ item.name }}</a>
+                {% endfor %}
+            </div>
+            {% elif mode == "leer" %}
+            <h2>{{ board.name }}</h2>
+            <p>Dieses Board ist noch nicht konfiguriert.</p>
+            {% if boards|length > 1 %}<p><a href="/">Andere Auswahl</a></p>{% endif %}
+            {% else %}
+            <h2>Kein Board</h2>
+            <p>Dir ist kein Board zugeordnet. Eine Erfassung ist so nicht möglich.</p>
+            {% endif %}
+        </main>
+    </div>
+</body>
+</html>

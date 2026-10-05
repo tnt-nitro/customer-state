@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anmeldung – Customer State</title>
+    <link rel="stylesheet" href="{{ asset('style.css') }}">
+</head>
+<body>
+    <div class="page login">
+        <main>
+            <h1>Customer State</h1>
+            {% if fehler %}<p class="admin-error" role="alert">{{ fehler }}</p>{% endif %}
+            {% if person %}
+            <form class="login-pin" method="post" action="/login/pin">
+                <input type="hidden" name="mitarbeiter" value="{{ person.id }}">
+                <h2>{{ person.name }}</h2>
+                {% if person.pin_set %}
+                <label>PIN
+                    <input name="pin" type="password" inputmode="numeric" autocomplete="off" minlength="4" maxlength="4" pattern="[0-9]{4}" required>
+                </label>
+                {% else %}
+                <p>Persönlichen PIN festlegen</p>
+                <label>Neuer PIN
+                    <input name="pin" type="password" inputmode="numeric" autocomplete="off" minlength="4" maxlength="4" pattern="[0-9]{4}" required>
+                </label>
+                <label>PIN wiederholen
+                    <input name="pin_wiederholen" type="password" inputmode="numeric" autocomplete="off" minlength="4" maxlength="4" pattern="[0-9]{4}" required>
+                </label>
+                {% endif %}
+                <button type="submit">Anmelden</button>
+                <a href="/login">Zurück</a>
+            </form>
+            {% else %}
+            <h2>Wer arbeitet?</h2>
+            <div class="login-people">
+                {% for item in people %}
+                <form method="post" action="/login/auswahl">
+                    <input type="hidden" name="mitarbeiter" value="{{ item.id }}">
+                    <button type="submit">{{ item.name }}</button>
+                </form>
+                {% endfor %}
+                {% if not people %}<p>Keine anmeldungsoffenen Mitarbeiter.</p>{% endif %}
+            </div>
+            {% endif %}
+        </main>
+    </div>
+</body>
+</html>

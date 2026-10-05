@@ -203,6 +203,7 @@
             });
         }
         return {
+            board: catalog.key || "",
             level1: selectedOptions(level1).map(function (option) {
                 return option.id;
             }),
@@ -218,6 +219,7 @@
     function currentRecord() {
         var groups = level3Groups ? Array.from(level3Groups.querySelectorAll("[data-interest]")) : [];
         return {
+            board: catalog.key || "",
             level1: selectedOptions(level1).map(function (option) {
                 return option.id;
             }),
@@ -409,6 +411,7 @@
         }
         var status = statusPayload();
         var body = {
+            board: catalog.key || "",
             from_level: from,
             to_level: target,
             elapsed_seconds: elapsed,

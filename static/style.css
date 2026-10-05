@@ -1632,3 +1632,60 @@ a.admin-cell.is-button.is-selected small {
     font-size: 0.8rem;
     font-weight: 400;
 }
+
+.page.login main {
+    max-width: 560px;
+}
+
+.login-people {
+    display: grid;
+    gap: 12px;
+}
+
+.login-people button,
+.login-choice,
+.login-pin button,
+.nav form button {
+    min-height: 64px;
+    padding: 16px 18px;
+    border: 1px solid #1b2430;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #1b2430;
+    font: inherit;
+    font-size: 1.35rem;
+    font-weight: 650;
+    text-align: center;
+    text-decoration: none;
+}
+
+.login-pin {
+    display: grid;
+    gap: 14px;
+}
+
+.login-pin label {
+    display: grid;
+    gap: 6px;
+}
+
+.login-pin input {
+    min-height: 64px;
+    padding: 12px 14px;
+    border: 1px solid #c5ced8;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 1.5rem;
+    letter-spacing: 0.4em;
+}
+
+.nav form {
+    margin: 0;
+}
+
+.nav form button {
+    min-height: 0;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 1rem;
+}

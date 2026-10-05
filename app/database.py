@@ -349,16 +349,21 @@ def capture_clock_label(moment):
     return f"{WEEKDAY_NAMES[local.weekday()]} {local.strftime('%H:%M:%S')} {local.strftime('%d:%m:%Y')}"
 
 
-def latest_real_capture_label():
+def latest_real_capture_label(board_ids=None):
     connection = connect()
     try:
+        board_sql, board_params = _board_clause(board_ids)
+        where = "WHERE is_demo = 0"
+        if board_sql:
+            where += " AND " + board_sql.replace("e.board_id", "board_id")
         row = connection.execute(
-            """
+            f"""
             SELECT created_at FROM erfassungen
-            WHERE is_demo = 0
+            {where}
             ORDER BY id DESC
             LIMIT 1
-            """
+            """,
+            board_params,
         ).fetchone()
     finally:
         connection.close()
@@ -520,16 +525,21 @@ def _parse_client_time(value):
     return parsed.astimezone(BERLIN)
 
 
-def list_erfassungen(day=None, connection=None):
+def list_erfassungen(day=None, connection=None, board_ids=None):
     close_connection = connection is None
     if connection is None:
         connection = connect()
     try:
-        where = ""
+        conditions = []
         params = []
         if day is not None:
-            where = "WHERE substr(e.created_at, 1, 10) = ?"
+            conditions.append("substr(e.created_at, 1, 10) = ?")
             params.append(day.isoformat())
+        board_sql, board_params = _board_clause(board_ids)
+        if board_sql:
+            conditions.append(board_sql)
+            params.extend(board_params)
+        where = "WHERE " + " AND ".join(conditions) if conditions else ""
         rows = connection.execute(
             f"""
             SELECT e.id, e.created_at, e.started_at, e.level1_completed_at,
@@ -854,6 +864,8 @@ def save_erfassung(
     ):
         raise ValueError("Die Zeitangaben sind ungültig.")
 
+    # employee_id wird absichtlich nicht geschrieben. Die Anmeldung darf keine
+    # Erfassung, Zeitmessung oder Korrektur einer Person zuordnen.
     connection = connect()
     try:
         cursor = connection.execute(
@@ -931,6 +943,15 @@ def _de_pct(part, whole):
     return _de_num(100 * part / whole) + " %"
 
 
+def _board_clause(board_ids, alias="e"):
+    if board_ids is None:
+        return "", []
+    if not board_ids:
+        return "0 = 1", []
+    marks = ",".join("?" for _ in board_ids)
+    return f"{alias}.board_id IN ({marks})", list(board_ids)
+
+
 def _modus_clause(modus):
     if modus == "demo":
         return "e.is_demo = 1", []
@@ -939,8 +960,9 @@ def _modus_clause(modus):
     return "1 = 1", []
 
 
-def _used_options(connection, modus, position):
+def _used_options(connection, modus, position, board_ids=None):
     clause, params = _modus_clause(modus)
+    board_sql, board_params = _board_clause(board_ids)
     if position == 1:
         usage = """
             JOIN erfassung_herkunft AS used ON used.option_id = o.id
@@ -963,10 +985,10 @@ def _used_options(connection, modus, position):
         FROM board_options AS o
         JOIN board_levels AS l ON l.id = o.level_id
         {usage}
-        WHERE l.position = ? AND {clause}
+        WHERE l.position = ? AND {clause}{(" AND " + board_sql) if board_sql else ""}
         ORDER BY o.position, o.id
         """,
-        [position, *params],
+        [position, *params, *board_params],
     ).fetchall()
     return [
         {"id": row[0], "key": row[1], "label": row[2], "aktiv": row[3], "position": row[4]}
@@ -1001,11 +1023,12 @@ def _filter_ids(options, raw):
     return [option["id"] for option in matched], text
 
 
-def _load_entries(connection, modus, herkunft, interesse, detail=""):
+def _load_entries(connection, modus, herkunft, interesse, detail="", board_ids=None):
     clause, params = _modus_clause(modus)
-    level1_options = _used_options(connection, modus, 1)
-    level2_options = _used_options(connection, modus, 2)
-    level3_options = _used_options(connection, modus, 3)
+    board_sql, board_params = _board_clause(board_ids)
+    level1_options = _used_options(connection, modus, 1, board_ids)
+    level2_options = _used_options(connection, modus, 2, board_ids)
+    level3_options = _used_options(connection, modus, 3, board_ids)
     herkunft_ids, applied_herkunft = _filter_ids(level1_options, herkunft)
     interesse_ids, applied_interesse = _filter_ids(level2_options, interesse)
     detail_ids, applied_detail = _filter_ids(level3_options, detail)
@@ -1029,8 +1052,9 @@ def _load_entries(connection, modus, herkunft, interesse, detail=""):
         LEFT JOIN board_options AS io ON io.id = i.option_id
         LEFT JOIN erfassung_detail AS d ON d.interesse_id = i.id
         LEFT JOIN board_options AS do ON do.id = d.option_id
-        WHERE {clause}
+        WHERE {clause}{(" AND " + board_sql) if board_sql else ""}
     """
+    params.extend(board_params)
     if herkunft_ids:
         marks = ",".join("?" for _ in herkunft_ids)
         sql += f"""
@@ -1133,11 +1157,11 @@ def _load_entries(connection, modus, herkunft, interesse, detail=""):
     return entries
 
 
-def _known_values(connection, modus):
+def _known_values(connection, modus, board_ids=None):
     return (
-        _used_options(connection, modus, 1),
-        _used_options(connection, modus, 2),
-        _used_options(connection, modus, 3),
+        _used_options(connection, modus, 1, board_ids),
+        _used_options(connection, modus, 2, board_ids),
+        _used_options(connection, modus, 3, board_ids),
     )
 
 
@@ -1543,12 +1567,13 @@ def build_auswertung(
     mark_end=None,
     stufen=None,
     wochentage=None,
+    board_ids=None,
 ):
     close_connection = connection is None
     if connection is None:
         connection = connect()
     try:
-        level1_options, level2_options, level3_options = _known_values(connection, modus)
+        level1_options, level2_options, level3_options = _known_values(connection, modus, board_ids)
         _herkunft_ids, applied_herkunft = _filter_ids(level1_options, herkunft)
         _interesse_ids, applied_interesse = _filter_ids(level2_options, interesse)
         _detail_ids, applied_detail = _filter_ids(level3_options, detail)
@@ -1558,6 +1583,7 @@ def build_auswertung(
             applied_herkunft,
             applied_interesse,
             applied_detail,
+            board_ids,
         )
         timed_entries = _load_entries(
             connection,
@@ -1565,6 +1591,7 @@ def build_auswertung(
             applied_herkunft,
             applied_interesse,
             applied_detail,
+            board_ids,
         )
     finally:
         if close_connection:
@@ -1777,12 +1804,15 @@ def build_auswertung(
     }
 
 
-def erfassungen_board(selected):
+def erfassungen_board(selected, board_ids=None):
     connection = connect()
     try:
-        overview = list_erfassungen(selected, connection)
+        overview = list_erfassungen(selected, connection, board_ids)
+        board_sql, board_params = _board_clause(board_ids)
+        where = "WHERE " + board_sql if board_sql else ""
         rows = connection.execute(
-            "SELECT substr(created_at, 1, 10), COUNT(*) FROM erfassungen GROUP BY 1"
+            f"SELECT substr(created_at, 1, 10), COUNT(*) FROM erfassungen AS e {where} GROUP BY 1",
+            board_params,
         ).fetchall()
     finally:
         connection.close()
@@ -1870,10 +1900,10 @@ def apply_option_filter(options, raw):
     return applied, invalid
 
 
-def filter_names(modus):
+def filter_names(modus, board_ids=None):
     connection = connect()
     try:
-        names = _known_values(connection, modus)
+        names = _known_values(connection, modus, board_ids)
         return names[0], names[1]
     finally:
         connection.close()
@@ -1922,11 +1952,11 @@ def suggest_compare_days(modus, herkunft, interesse, today):
     return left, earlier[-1] if earlier else left
 
 
-def compare_periods(modus, herkunft, interesse, left, right, art):
+def compare_periods(modus, herkunft, interesse, left, right, art, board_ids=None):
     connection = connect()
     try:
-        entries = _load_entries(connection, modus, herkunft, interesse)
-        level1_options, level2_options, _level3_options = _known_values(connection, modus)
+        entries = _load_entries(connection, modus, herkunft, interesse, "", board_ids)
+        level1_options, level2_options, _level3_options = _known_values(connection, modus, board_ids)
     finally:
         connection.close()
 

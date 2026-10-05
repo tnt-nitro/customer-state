@@ -5,6 +5,13 @@
         <a href="/erfassungen" {% if active == "erfassungen" %}aria-current="page"{% endif %}>Erfassungen</a>
         <a href="/auswertung" {% if active == "auswertung" %}aria-current="page"{% endif %}>Auswertung</a>
         <a href="/vergleich" {% if active == "vergleich" %}aria-current="page"{% endif %}>Vergleich</a>
+        {% if show_admin %}
         <a href="/admin" {% if active == "admin" %}aria-current="page"{% endif %}>Admin</a>
+        {% endif %}
+        {% if user %}
+        <form method="post" action="/logout">
+            <button type="submit">Abmelden</button>
+        </form>
+        {% endif %}
     </nav>
 </header>
